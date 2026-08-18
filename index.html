@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GST Billing</title>
+    <!-- Premium Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" type="shortcuticon" href="im">
+</head>
+
+<body>
+    <!-- App Container -->
+    <div id="app">
+
+        <!-- Login View -->
+        <section id="login-view" class="view active-view">
+            <div class="login-card glass">
+                <div class="logo-container">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <h3>Welcome</h3>
+                <p class="subtitle">A R T Leasing Limited</p>
+                <form id="loginForm">
+                    <div class="input-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" placeholder="Enter username" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" placeholder="Enter password" required>
+                    </div>
+                    <button type="submit" class="btn-primary" id="loginBtn">
+                        <span>Login</span>
+                        <div class="spinner hidden" id="loginSpinner"></div>
+                    </button>
+                    <p id="loginError" class="error-msg hidden"></p>
+                </form>
+            </div>
+        </section>
+
+        <!-- Main Dashboard View -->
+        <section id="dashboard-view" class="view hidden">
+            <!-- Sidebar -->
+            <aside class="sidebar glass">
+                <div class="sidebar-header">
+                    <div class="sidebar-logo-container">
+                        <i class="fa-solid fa-cube"></i>
+                        <div class="sidebar-title">
+                            <h3>GST Billing</h3>
+                        </div>
+                    </div>
+                </div>
+                <nav class="sidebar-nav">
+                    <ul class="nav-links">
+                        <li id="nav-dash">
+                            <a href="#" onclick="switchTab('dash')" class="active">
+                                <i class="fa-solid fa-bars"></i>
+                                <span class="nav-text">Dashboard</span>
+                            </a>
+                        </li>
+                        <li id="nav-billing">
+                            <a href="#" onclick="switchTab('billing')" class="active">
+                                <i class="fa-solid fa-file-pen"></i>
+                                <span class="nav-text">Invoices</span>
+                            </a>
+                        </li>
+                        <li id="nav-report">
+                            <a href="#" onclick="switchTab('report')">
+                                <i class="fa-solid fa-file-lines"></i>
+                                <span class="nav-text">Invoice Reports</span>
+                            </a>
+                        </li>
+                        <!-- Settings menu -->
+                        <li id="nav-settings" class="has-submenu">
+                            <a href="#" onclick="toggleSubmenu(event, 'settings-submenu')">
+                                <i class="fa-solid fa-cog"></i>
+                                <span class="nav-text">Settings</span>
+                                <i class="fa-solid fa-chevron-down submenu-icon"></i>
+                            </a>
+                            <ul id="settings-submenu" class="submenu">
+                                <li id="nav-branches">
+                                    <a href="#" onclick="switchTab('branches')">
+                                        <i class="fa-solid fa-building"></i>
+                                        <span class="nav-text">Branches</span>
+                                    </a>
+                                </li>
+                                <li id="nav-users">
+                                    <a href="#" onclick="switchTab('users')">
+                                        <i class="fa-solid fa-users"></i>
+                                        <span class="nav-text">Users</span>
+                                    </a>
+                                </li>
+                                <li id="nav-schemes">
+                                    <a href="#" onclick="switchTab('schemes')">
+                                        <i class="fa-solid fa-percent"></i>
+                                        <span class="nav-text">Schemes</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </nav>
+                <div class="sidebar-footer">
+                    <div class="user-info-side">
+                        <i class="fa-solid fa-circle-user"></i>
+                        <span id="currentBranchDisplay" class="nav-text"></span>
+                    </div>
+                    <a href="#" id="logoutBtn" class="logout-btn">
+                        <i class="fa-solid fa-power-off"></i>
+                        <span class="nav-text">Logout</span>
+                    </a>
+                </div>
+            </aside>
+
+            <main class="content-area">
+                <!-- Popup selection -->
+                <!--- for branch -->
+                <div id="branchPopup" class="popup hidden">
+                    <div class="popup-content">
+                        <h3 id="branchPopupTitle">New Branch</h3>
+                        <form id="branchForm">
+                            <input type="hidden" id="branchDocId">
+                            <div class="form-grid">
+                                <div class="input-box">
+                                    <label for="branchName"><i class="fa-solid fa-building"></i> Branch</label>
+                                    <input type="text" id="branchName" placeholder="Branch Name" required
+                                        autocomplete="off">
+                                </div>
+                                <div class="input-box">
+                                    <label for="branchCode"><i class="fa-solid fa-hashtag"></i>Code</label>
+                                    <input type="text" id="branchCode" placeholder="code" required autocomplete="off">
+                                </div>
+                                <div class="input-box">
+                                    <label for="printEnable"><i class="fa-solid fa-print"></i> Enable print</label>
+                                    <select name="printEnable" id="printEnable">
+                                        <option value=""></option>
+                                        <option value="no">No</option>
+                                        <option value="yes">Yes</option>
+                                    </select>
+                                </div>
+                                <div class="input-box">
+                                    <label for="autoBillNo"><i class="fa-solid fa-arrow-up-1-9"></i>Auto Bill
+                                        No.</label>
+                                    <select name="autoBillNo" id="autoBillNo">
+                                        <option value=""></option>
+                                        <option value="no">NO</option>
+                                        <option value="yes">YES</option>
+                                    </select>
+                                </div>
+                                <div class="input-box hidden" id="nextBillNoBox">
+                                    <label for="nextBillNo"><i class="fa-solid fa-list-ol"></i>Next Bill
+                                        No.</label>
+                                    <input type="number" placeholder="Next bill No." id="nextBillNo">
+                                </div>
+                            </div>
+                            <div class="popup-buttons">
+                                <button type="submit" class="btn-primary" id="addBranchBtn">Save</button>
+                                <button type="reset" id="cancelBranchBtn" class="btn-primary">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- for user -->
+                <div id="userPopup" class="popup hidden">
+                    <div class="popup-content">
+                        <h3 id="userPopupTitle">New User</h3>
+                        <form id="userForm">
+                            <input type="hidden" id="userDocId">
+                            <div class="form-grid">
+                                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <div class="input-box">
+                                        <label for="newUserName"><i class="fa-solid fa-user"></i> User Name</label>
+                                        <input type="text" id="newUserName" placeholder="User Name" required>
+                                    </div>
+                                    <div class="input-box">
+                                        <label for="userRole"><i class="fa-solid fa-user-shield"></i> Role</label>
+                                        <select id="userRole" required>
+                                            <option value="" disabled selected>Select Role</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="headoffice">Head office</option>
+                                            <option value="branch">Branch</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <div class="input-box">
+                                        <label for="userPassword"><i class="fa-solid fa-lock"></i> Password</label>
+                                        <input type="password" id="userPassword"
+                                            placeholder="Password (Leave blank to keep)">
+                                    </div>
+
+                                    <div class="input-box">
+                                        <label for="userBranch"><i class="fa-solid fa-building"></i> Branch</label>
+                                        <select id="userBranch"></select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="popup-buttons">
+                                <button type="submit" class="btn-primary" id="addUserBtn">Save</button>
+                                <button type="reset" id="cancelUserBtn" class="btn-primary">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- Scheme Popup Form -->
+                <div id="SchemePopup" class="popup hidden">
+                    <div class="popup-content" style="width: 800px; max-width: 95vw;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #ccc; padding-bottom: 0.5rem;">
+                            <h3 style="border-bottom: none; margin: 0; padding: 0;">Add / Edit GST Scheme</h3>
+                            <button class="btn-secondary" id="closeSchemeBtn"
+                                style="padding: 5px 10px; border: none; background: transparent; cursor: pointer;"><i
+                                    class="fa-solid fa-times"></i></button>
+                        </div>
+                        <form id="schemeForm">
+                            <input type="hidden" id="schemeDocId">
+                            <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+                                <div class="input-box">
+                                    <label for="schemeName"><i class="fa-solid fa-tag"></i> Scheme Name</label>
+                                    <input type="text" id="schemeName" placeholder="e.g. 2026 Scheme" required>
+                                </div>
+                                <div class="input-box" style="display: flex; align-items: center; margin-top: 1.5rem;">
+                                    <input type="checkbox" id="isDefaultScheme"
+                                        style="width: auto; margin-right: 10px; transform: scale(1.5);">
+                                    <label for="isDefaultScheme" style="margin: 0;">Set as Default Scheme</label>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 1rem;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <h4 style="color: #000;">Slabs</h4>
+                                    <button type="button" id="addSlabBtn" class="btn-secondary"
+                                        style="padding: 5px 10px; font-size: 0.8rem;"><i class="fa-solid fa-plus"></i>
+                                        Add Slab</button>
+                                </div>
+                                <div id="slabsContainer" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <!-- Slabs will be dynamically inserted here -->
+                                </div>
+                            </div>
+
+                            <div class="popup-buttons" style="width: 100%; margin-left: 0; margin-top: 1.5rem;">
+                                <button type="reset" id="cancelSchemeBtn" class="btn-secondary">Cancel</button>
+                                <button type="submit" class="btn-primary" id="saveSchemeBtn">Save Scheme</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- popup end -->
+
+                <!-- admin dashboard-->
+                <div id="tab-dash" class="tab-content">
+                    <div class="card glass billing-card">
+
+                    </div>
+                </div>
+                <!-- billing Tab -->
+                <div id="tab-billing" class="tab-content hidden">
+                    <div class="card glass billing-card">
+                        <div class="card-header billing-header">
+                            <div class="header-title">
+                                <h3><i class="fa-solid fa-receipt"></i> GST Invoice</h3>
+                                <p class="branch-subtitle">Enter loan details to auto-calculate tax & total</p>
+                            </div>
+                        </div>
+                        <form class="billing-form" id="billing-form">
+                            <div class="billing-grid">
+                                <!-- Left Panel: Customer & Loan Inputs -->
+                                <div class="billing-panel billing-inputs-panel">
+                                    <h4 class="panel-subtitle"><i class="fa-solid fa-file-invoice"></i> Invoice Details
+                                    </h4>
+
+                                    <div class="input-box">
+                                        <label for="billDate"><i class="fa-solid fa-calendar-days"></i> Invoice
+                                            Date</label>
+                                        <input type="date" id="billDate" required>
+                                    </div>
+
+                                    <div class="input-row-2">
+                                        <div class="input-box">
+                                            <label for="invoiceNo"><i class="fa-solid fa-hashtag"></i> Invoice
+                                                No</label>
+                                            <input type="text" id="invoiceNo" placeholder="INV-001" required
+                                                autocomplete="off">
+                                        </div>
+                                        <div class="input-box">
+                                            <label for="loanNo"><i class="fa-solid fa-file-signature"></i> Loan
+                                                No</label>
+                                            <input type="text" id="loanNo" placeholder="LN-1001" required
+                                                autocomplete="off">
+                                        </div>
+                                    </div>
+
+                                    <div class="input-box">
+                                        <label for="customerName"><i class="fa-solid fa-user"></i> Customer Name</label>
+                                        <input type="text" id="customerName" placeholder="Enter customer full name"
+                                            required autocomplete="off">
+                                    </div>
+
+                                    <div class="input-box highlight-input">
+                                        <label for="loanAmount"><i class="fa-solid fa-indian-rupee-sign"></i> Loan
+                                            Amount (₹)</label>
+                                        <input type="number" id="loanAmount" placeholder="e.g. 50000" min="0" step="any"
+                                            required autocomplete="off">
+                                    </div>
+                                </div>
+
+                                <!-- Right Panel: GST & Calculation Summary -->
+                                <div class="billing-panel billing-summary-panel">
+                                    <h4 class="panel-subtitle"><i class="fa-solid fa-calculator"></i> Tax Breakdown
+                                        Summary</h4>
+
+                                    <div class="summary-cards-container">
+                                        <div class="summary-card">
+                                            <span class="summary-label"><i class="fa-solid fa-gears"></i> Processing
+                                                Fee</span>
+                                            <div class="summary-value-wrap">
+                                                <span class="currency-symbol">₹</span>
+                                                <input type="text" id="Charges" class="summary-input" readonly
+                                                    placeholder="0.00">
+                                            </div>
+                                        </div>
+
+                                        <div class="summary-card-row">
+                                            <div class="summary-card mini">
+                                                <span class="summary-label"><i class="fa-solid fa-percent"></i> CGST
+                                                    (9%)</span>
+                                                <div class="summary-value-wrap">
+                                                    <span class="currency-symbol">₹</span>
+                                                    <input type="text" id="CGST" class="summary-input" readonly
+                                                        placeholder="0.00">
+                                                </div>
+                                            </div>
+
+                                            <div class="summary-card mini">
+                                                <span class="summary-label"><i class="fa-solid fa-percent"></i> SGST
+                                                    (9%)</span>
+                                                <div class="summary-value-wrap">
+                                                    <span class="currency-symbol">₹</span>
+                                                    <input type="text" id="SGST" class="summary-input" readonly
+                                                        placeholder="0.00">
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="summary-card total-card">
+                                            <span class="summary-label"><i class="fa-solid fa-sack-dollar"></i> Net
+                                                Payable Amount</span>
+                                            <div class="summary-value-wrap total-wrap">
+                                                <span class="currency-symbol total-symbol">₹</span>
+                                                <input type="text" id="Total" class="summary-input total-input" readonly
+                                                    placeholder="0.00">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action buttons -->
+                            <div class="billing-actions">
+                                <button type="reset" id="resetInvoiceBtn" class="btn-secondary">
+                                    <i class="fa-solid fa-rotate-left"></i> Reset
+                                </button>
+                                <button type="submit" id="saveInvoiceBtn" class="btn-primary">
+                                    <i class="fa-solid fa-floppy-disk"></i> Save Invoice
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- Reports Tab -->
+                <div id="tab-report" class="tab-content hidden">
+                    <div class="card glass report-card">
+                        <div class="card-header report-header">
+                            <div class="header-title">
+                                <h3><i class="fa-solid fa-file-lines"></i> Invoice Reports</h3>
+                                <p class="branch-subtitle hidden" id="reportSubtitle">Showing reports</p>
+                            </div>
+                            <div class="header-actions" style="display: flex; gap: 6px;">
+                                <button id="exportExcelBtn" class="btn-secondary" title="Export to excell"><i
+                                        class="fa-solid fa-file-excel"></i></button>
+                                <button id="printPdfBtn" class="btn-secondary" title="Print"><i
+                                        class="fa-solid fa-print"></i></button>
+                            </div>
+                        </div>
+                        <div class="filter-box">
+                            <div class="input-box">
+                                <label for="fromDate">From:</label>
+                                <input type="date" id="fromDate">
+                            </div>
+                            <div class="input-box">
+                                <label for="toDate">To:</label>
+                                <input type="date" id="toDate">
+                            </div>
+                            <div class="input-box" id="adminFilterBox">
+                                <label for="branchFilter">Branch:</label>
+                                <select id="branchFilter"></select>
+                            </div>
+                            <div class="input-box">
+                                <button class="btn-primary" id="searchReportBtn">Display</button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table id="reportTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Invoice No</th>
+                                        <th>Loan No</th>
+                                        <th>Customer</th>
+                                        <th>Loan Amt</th>
+                                        <th>Charges</th>
+                                        <th>SGST(9%)</th>
+                                        <th>CGST(9%)</th>
+                                        <th>Total</th>
+                                        <th class="hidden">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reportTbody">
+                                    <tr>
+                                        <td colspan="10" class="loading-td">Loading data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Settings: Branches Tab -->
+                <div id="tab-branches" class="tab-content hidden">
+                    <div class="card glass form-card">
+                        <div class="card-header report-header">
+                            <div class="">
+                                <h3><i class="fa-solid fa-building"></i> Branch Details</h3>
+                                <p class="branch-subtitle hidden">Manage branch information</p>
+                            </div>
+                            <button id="addBranch" class="btn-secondary"><i
+                                    class="fa-solid fa-building-circle-check"></i>Add
+                                Branch</button>
+                        </div>
+                        <!-- branches details table -->
+                        <div id="branchesTableContainer" class="table-container">
+                            <table id="branchesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Branch</th>
+                                        <th>Code</th>
+                                        <th>Auto Invoice No</th>
+                                        <th>Print</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="branchesTbody">
+                                    <tr>
+                                        <td colspan="5" class="loading-td">Loading data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Settings: Users Tab -->
+                <div id="tab-users" class="tab-content hidden">
+                    <div class="card glass form-card">
+                        <div class="card-header report-header">
+                            <div>
+                                <h3><i class="fa-solid fa-users"></i> User Details</h3>
+                                <p class="branch-subtitle hidden">Manage user information</p>
+                            </div>
+                            <button id="addUser" class="btn-secondary"><i class="fa-solid fa-user-plus"></i> Add
+                                User</button>
+                        </div>
+                        <!-- users details table -->
+                        <div id="usersTableContainer" class="table-container">
+                            <table id="usersTable">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Branch</th>
+                                        <th>Role</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTbody">
+                                    <tr>
+                                        <td colspan="4" class="loading-td">Loading data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Settings: GST Scheme -->
+                <div id="tab-schemes" class="tab-content hidden">
+                    <div class="card glass form-card">
+                        <div class="card-header report-header">
+                            <div>
+                                <h3><i class="fa-solid fa-percent"></i> GST Schemes</h3>
+                                <p class="branch-subtitle hidden">Manage GST Schemes</p>
+                            </div>
+                            <button id="addScheme" class="btn-secondary"><i class="fa-solid fa-plus"></i> Add
+                                Scheme</button>
+                        </div>
+                        <!-- gst schemes table -->
+                        <div id="schemesTableContainer" class="table-container">
+                            <table id="schemesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Scheme Name</th>
+                                        <th>Default</th>
+                                        <th>Slabs Count</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="schemesTbody">
+                                    <tr>
+                                        <td colspan="4" class="loading-td">Loading data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+
+
+            </main>
+        </section>
+    </div>
+
+    <!-- Application Logic -->
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
