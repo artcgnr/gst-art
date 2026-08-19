@@ -1,5 +1,72 @@
 import { db, collection, addDoc, getDoc, getDocs, query, where, orderBy, doc, setDoc, updateDoc, deleteDoc } from "./db.js";
 import { formatDate, getBranchDropList, getBranchName } from "./public.js";
+
+// Toast Notification Function (In-app HTML Alert - 2-3s display)
+export function showToast(message, type = 'success', duration = 2500) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast-message toast-${type}`;
+
+    let iconClass = 'fa-circle-check';
+    if (type === 'error' || type === 'danger') iconClass = 'fa-circle-xmark';
+    else if (type === 'warning') iconClass = 'fa-triangle-exclamation';
+    else if (type === 'info') iconClass = 'fa-circle-info';
+
+    toast.innerHTML = `
+        <div class="toast-icon"><i class="fa-solid ${iconClass}"></i></div>
+        <div class="toast-text">${message}</div>
+        <button type="button" class="toast-close"><i class="fa-solid fa-xmark"></i></button>
+    `;
+
+    const closeBtn = toast.querySelector('.toast-close');
+    closeBtn.addEventListener('click', () => {
+        toast.classList.remove('toast-show');
+        toast.classList.add('toast-hide');
+        setTimeout(() => toast.remove(), 300);
+    });
+
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('toast-show');
+    });
+
+    // Auto dismiss after 2-3 seconds (default 2.5s)
+    setTimeout(() => {
+        toast.classList.remove('toast-show');
+        toast.classList.add('toast-hide');
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 300);
+    }, duration);
+}
+
+// Global window.alert override so any popup displays inside HTML for 2-3 seconds
+window.alert = function (message) {
+    let type = 'info';
+    const lower = String(message).toLowerCase();
+    if (lower.includes('success') || lower.includes('added') || lower.includes('updated') || lower.includes('deleted')) {
+        type = 'success';
+    } else if (lower.includes('error') || lower.includes('failed')) {
+        type = 'error';
+    } else if (lower.includes('required') || lower.includes('cannot') || lower.includes('please')) {
+        type = 'warning';
+    }
+    showToast(message, type, 2500);
+};
+
+window.showToast = showToast;
+
 // State
 let currentUser = null; // { username, role, branch }
 
@@ -143,7 +210,7 @@ window.switchTab = function (tabName) {
         loadUsers();
     }
     if (tabName === 'dash') {
-        // loadchits();
+        loadDashboardData();
     }
     if (tabName === 'schemes') {
         loadSchemes();
@@ -179,6 +246,7 @@ function setupDashboard(user) {
         if (navSchemes) navSchemes.style.display = 'flex';
         populateBranchFilter();
         window.switchTab('dash');
+        loadDashboardData();
     } else {
         // Branch
         filterBox.style.display = 'none';
@@ -197,7 +265,7 @@ function setupDashboard(user) {
 document.getElementById('logoutBtn').addEventListener('click', (e) => {
     e.preventDefault();
     currentUser = null;
-    localStorage.removeItem('currentUser');
+    localStorage.clear();
 
     dashboardView.classList.remove('active-view');
     setTimeout(() => {
@@ -213,6 +281,122 @@ document.getElementById('logoutBtn').addEventListener('click', (e) => {
         document.getElementById('loginForm').reset();
     }, 300);
 });
+
+// -------------------------------------------------------------
+// Business Dashboard Data Calculation & Rendering
+// -------------------------------------------------------------
+async function loadDashboardData() {
+    if (!currentUser) return;
+
+    const dashTotalInvoices = document.getElementById('dashTotalInvoices');
+    const dashTotalLoan = document.getElementById('dashTotalLoan');
+    const dashTotalGst = document.getElementById('dashTotalGst');
+    const dashTotalCharges = document.getElementById('dashTotalCharges');
+    const dashBranchTbody = document.getElementById('dashBranchTbody');
+    const dashRecentInvoicesTbody = document.getElementById('dashRecentInvoicesTbody');
+    const dashBranchCount = document.getElementById('dashBranchCount');
+
+    if (!dashTotalInvoices) return;
+
+    try {
+        const [invoicesSnap, branchesSnap] = await Promise.all([
+            getDocs(collection(db, "invoices")),
+            getDocs(collection(db, "branches"))
+        ]);
+
+        const allInvoices = [];
+        invoicesSnap.forEach(d => allInvoices.push({ id: d.id, ...d.data() }));
+
+        if (dashBranchCount) {
+            dashBranchCount.textContent = `${branchesSnap.size} Branch${branchesSnap.size !== 1 ? 'es' : ''}`;
+        }
+
+        let totalLoanSum = 0;
+        let totalGstSum = 0;
+        let totalChargesSum = 0;
+
+        const branchStats = {};
+
+        allInvoices.forEach(inv => {
+            const loan = parseFloat(inv.loanAmount) || 0;
+            const sgst = parseFloat(inv.sgst) || 0;
+            const cgst = parseFloat(inv.cgst) || 0;
+            const charges = parseFloat(inv.charges) || 0;
+            const gst = sgst + cgst;
+
+            totalLoanSum += loan;
+            totalGstSum += gst;
+            totalChargesSum += charges;
+
+            const bName = inv.branchName || 'HeadOffice';
+            if (!branchStats[bName]) {
+                branchStats[bName] = { count: 0, loan: 0, gst: 0 };
+            }
+            branchStats[bName].count += 1;
+            branchStats[bName].loan += loan;
+            branchStats[bName].gst += gst;
+        });
+
+        dashTotalInvoices.textContent = allInvoices.length.toLocaleString('en-IN');
+        dashTotalLoan.textContent = `₹${totalLoanSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        dashTotalGst.textContent = `₹${totalGstSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        dashTotalCharges.textContent = `₹${totalChargesSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        // Render Branch Performance
+        if (dashBranchTbody) {
+            const branchEntries = Object.entries(branchStats);
+            if (branchEntries.length === 0) {
+                dashBranchTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">No branch activity recorded yet.</td></tr>';
+            } else {
+                let bHtml = '';
+                branchEntries.sort((a, b) => b[1].loan - a[1].loan);
+                branchEntries.forEach(([bName, stats]) => {
+                    bHtml += `
+                        <tr>
+                            <td style="font-weight: 600;"><i class="fa-solid fa-building" style="margin-right: 8px; color: #818cf8;"></i>${bName}</td>
+                            <td><span class="badge">${stats.count}</span></td>
+                            <td style="font-weight: 600;">₹${stats.loan.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td style="color: #34d399; font-weight: 600;">₹${stats.gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    `;
+                });
+                dashBranchTbody.innerHTML = bHtml;
+            }
+        }
+
+        // Render Recent Invoices
+        if (dashRecentInvoicesTbody) {
+            if (allInvoices.length === 0) {
+                dashRecentInvoicesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">No invoices generated yet.</td></tr>';
+            } else {
+                allInvoices.sort((a, b) => {
+                    const timeA = a.timestamp ? (a.timestamp.seconds || new Date(a.timestamp).getTime()) : (a.billDate ? new Date(a.billDate).getTime() : 0);
+                    const timeB = b.timestamp ? (b.timestamp.seconds || new Date(b.timestamp).getTime()) : (b.billDate ? new Date(b.billDate).getTime() : 0);
+                    return timeB - timeA;
+                });
+
+                const recent = allInvoices.slice(0, 5);
+                let rHtml = '';
+                recent.forEach(inv => {
+                    const dateDisplay = inv.billDate ? formatDate(inv.billDate) : '';
+                    const totalVal = parseFloat(inv.total) || 0;
+                    rHtml += `
+                        <tr>
+                            <td style="font-weight: 600; color: #818cf8;">${inv.invoiceNo || '-'}</td>
+                            <td style="font-size: 0.8rem; color: var(--text-muted);">${dateDisplay}</td>
+                            <td>${inv.customerName || '-'}</td>
+                            <td style="font-weight: 700; color: #ffffff;">₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    `;
+                });
+                dashRecentInvoicesTbody.innerHTML = rHtml;
+            }
+        }
+
+    } catch (err) {
+        console.error("Error loading dashboard data:", err);
+    }
+}
 
 // -------------------------------------------------------------
 // Reports Handling
@@ -238,14 +422,48 @@ async function loadReports() {
             allDocs.push({ id: docSnap.id, ...docSnap.data() });
         });
 
+        // Build branch map linking branch id, name, and branchCode
+        const branchesSnap = await getDocs(collection(db, "branches"));
+        const branchMap = new Map();
+        const branchCodeMap = new Map();
+
+        branchesSnap.forEach(d => {
+            const data = d.data() || {};
+            const bId = d.id.trim().toLowerCase();
+            const bName = (data.name || '').trim().toLowerCase();
+            const bCode = (data.branchCode || data.name || '').trim().toUpperCase();
+
+            if (bCode) {
+                branchCodeMap.set(bId, bCode);
+                if (bName) branchCodeMap.set(bName, bCode);
+                if (data.branchCode) branchCodeMap.set(data.branchCode.trim().toLowerCase(), bCode);
+            }
+
+            const identifiers = new Set([bId, bName, (data.branchCode || '').trim().toLowerCase()].filter(Boolean));
+            identifiers.forEach(idKey => {
+                if (!branchMap.has(idKey)) {
+                    branchMap.set(idKey, identifiers);
+                } else {
+                    identifiers.forEach(val => branchMap.get(idKey).add(val));
+                }
+            });
+        });
+
         // Filter based on User Role & Selection
         let filteredDocs = [];
 
         if (currentUser.role === 'branch') {
             const userBranchStr = (currentUser.branch || '').trim().toLowerCase();
+            const allowedIdentifiers = branchMap.get(userBranchStr) || new Set([userBranchStr]);
+
             filteredDocs = allDocs.filter(d => {
-                const bName = (d.branchName || '').trim().toLowerCase();
-                return bName === userBranchStr || d.branchId === currentUser.branch;
+                const docBName = (d.branchName || '').trim().toLowerCase();
+                const docBId = (d.branchId || '').trim().toLowerCase();
+                const docBCode = (d.branchCode || '').trim().toLowerCase();
+
+                return allowedIdentifiers.has(docBName) ||
+                    allowedIdentifiers.has(docBId) ||
+                    allowedIdentifiers.has(docBCode);
             });
         } else {
             // Admin or HeadOffice
@@ -253,9 +471,16 @@ async function loadReports() {
             const selectedBranch = branchSelect ? branchSelect.value : 'All';
             if (selectedBranch && selectedBranch !== 'All') {
                 const selectedLower = selectedBranch.trim().toLowerCase();
+                const selectedIdentifiers = branchMap.get(selectedLower) || new Set([selectedLower]);
+
                 filteredDocs = allDocs.filter(d => {
-                    const bName = (d.branchName || '').trim().toLowerCase();
-                    return bName === selectedLower || d.id === selectedBranch;
+                    const docBName = (d.branchName || '').trim().toLowerCase();
+                    const docBId = (d.branchId || '').trim().toLowerCase();
+                    const docBCode = (d.branchCode || '').trim().toLowerCase();
+
+                    return selectedIdentifiers.has(docBName) ||
+                        selectedIdentifiers.has(docBId) ||
+                        selectedIdentifiers.has(docBCode);
                 });
             } else {
                 filteredDocs = allDocs;
@@ -295,6 +520,18 @@ async function loadReports() {
             });
         }
 
+        const reportSubtitle = document.getElementById('reportSubtitle');
+        if (reportSubtitle) {
+            const branchSelect = document.getElementById('branchFilter');
+            const selectedBranch = branchSelect ? branchSelect.value : 'All';
+            if (selectedBranch && selectedBranch !== 'All') {
+                reportSubtitle.textContent = `Showing reports for ${selectedBranch}`;
+            } else {
+                reportSubtitle.textContent = `Showing reports for All Branches`;
+            }
+            reportSubtitle.classList.remove('hidden');
+        }
+
         if (filteredDocs.length === 0) {
             tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No records found for this criteria.</td></tr>';
             return;
@@ -307,10 +544,24 @@ async function loadReports() {
 
         let html = '';
         filteredDocs.forEach((data) => {
+            let displayInvoiceNo = (data.invoiceNo || '').trim();
+            if (displayInvoiceNo) {
+                const parts = displayInvoiceNo.split('/');
+                let rawPrefix = parts.length > 1 ? parts[0] : '';
+                let rawNum = parts.length > 1 ? parts[1] : parts[0];
+
+                let resolvedCode = branchCodeMap.get(rawPrefix.toLowerCase()) ||
+                    branchCodeMap.get((data.branchId || '').trim().toLowerCase()) ||
+                    branchCodeMap.get((data.branchName || '').trim().toLowerCase()) ||
+                    (data.branchCode || rawPrefix || 'INV');
+
+                displayInvoiceNo = `${String(resolvedCode).toUpperCase()}/${rawNum.padStart(3, '0')}`;
+            }
+
             html += `
                 <tr>                    
                     <td>${formatDate(data.billDate)}</td>
-                    <td>${data.invoiceNo || ''}</td>
+                    <td>${displayInvoiceNo}</td>
                     <td>${data.loanNo || ''}</td>
                     <td>${data.customerName || ''}</td>
                     <td>₹${Number(data.loanAmount || 0).toLocaleString('en-IN')}</td>
@@ -318,7 +569,7 @@ async function loadReports() {
                     <td>₹${Number(data.sgst || 0).toLocaleString('en-IN')}</td>                    
                     <td>₹${Number(data.cgst || 0).toLocaleString('en-IN')}</td>                    
                     <td>₹${Number(data.total || 0).toLocaleString('en-IN')}</td>
-                    <td class="hidden">
+                    <td>
                         <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
                             <button class="btn-primary" onclick="printInvoice('${data.id}')" title="Print Invoice" style="padding: 4px 8px; font-size: 0.75rem;"><i class="fa-solid fa-print"></i></button>
                             ${showDelete ? `<button class="btn-secondary" onclick="deleteInvoice('${data.id}')" title="Delete Invoice" style="padding: 4px 8px; font-size: 0.75rem; background: var(--error); border: none; color: white;"><i class="fa-solid fa-trash"></i></button>` : ''}
@@ -337,34 +588,54 @@ async function loadReports() {
 }
 
 
-// Populate Branch Filter for Admin
+// Populate Branch Filter for Admin & HeadOffice
 async function populateBranchFilter() {
     try {
         const branchesSnap = await getDocs(collection(db, "branches"));
         const branchSelect = document.getElementById('branchFilter');
+        if (!branchSelect) return;
 
-        // Keep "All Branches"
         branchSelect.innerHTML = '<option value="All">All Branches</option>';
 
-        const branches = new Set();
+        const branchList = [];
         branchesSnap.forEach(doc => {
-            if (doc.data().name) {
-                branches.add(doc.data().name);
+            const bData = doc.data() || {};
+            if (bData.name) {
+                branchList.push({
+                    name: bData.name,
+                    id: doc.id,
+                    code: bData.branchCode || ''
+                });
             }
         });
 
-        const sortedBranches = Array.from(branches).sort();
-        sortedBranches.forEach(branch => {
+        // Deduplicate by name and sort
+        const uniqueBranches = [];
+        const seen = new Set();
+        branchList.forEach(b => {
+            const key = b.name.trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueBranches.push(b);
+            }
+        });
+
+        uniqueBranches.sort((a, b) => a.name.localeCompare(b.name));
+
+        uniqueBranches.forEach(b => {
             const opt = document.createElement('option');
-            opt.value = branch;
-            opt.textContent = branch;
+            opt.value = b.name;
+            opt.textContent = b.name;
             branchSelect.appendChild(opt);
         });
 
-        // Add event listener to reload auto invoice number on change
-        branchSelect.addEventListener('change', () => {
-            loadAutoInvoiceNumber();
-        });
+        // Attach change listener to update auto invoice number when branch selection changes
+        if (!branchSelect.dataset.listenerAttached) {
+            branchSelect.addEventListener('change', () => {
+                loadAutoInvoiceNumber();
+            });
+            branchSelect.dataset.listenerAttached = "true";
+        }
 
     } catch (error) {
         console.error("Error populating branch filter: ", error);
@@ -442,14 +713,14 @@ branchForm.addEventListener('submit', async (e) => {
                 updatedAt: new Date()
             });
 
-            alert("Branch updated successfully!");
+            showToast("Branch updated successfully!", "success");
 
         } else {
             // ================= ADD NEW MODE =================
             // Check if branch already exists 
             const branchesSnap = await getDocs(query(collection(db, "branches"), where("name", "==", branchName)));
             if (!branchesSnap.empty) {
-                alert("Branch already exists!");
+                showToast("Branch already exists!", "warning");
                 addBranchBtn.disabled = false;
                 addBranchBtn.innerHTML = 'Save';
                 return;
@@ -464,7 +735,7 @@ branchForm.addEventListener('submit', async (e) => {
                 createdAt: new Date()
             });
 
-            alert("Branch added successfully!");
+            showToast("Branch added successfully!", "success");
         }
 
         branchForm.reset();
@@ -478,7 +749,7 @@ branchForm.addEventListener('submit', async (e) => {
 
     } catch (error) {
         console.error("Error saving branch:", error);
-        alert("Error saving branch: " + error.message);
+        showToast("Error saving branch: " + error.message, "error");
     } finally {
         addBranchBtn.disabled = false;
         addBranchBtn.innerHTML = 'Save';
@@ -598,12 +869,12 @@ userForm.addEventListener('submit', async (e) => {
     if (role === 'admin' || role === 'headoffice') {
         userBranch = 'none';
     } else if (role === 'branch' && !userBranch) {
-        alert('Branch is required for branch role.');
+        showToast('Branch is required for branch role.', 'warning');
         return;
     }
 
     if (!username || !role) {
-        alert('All fields are required.');
+        showToast('All fields are required.', 'warning');
         return;
     }
 
@@ -621,15 +892,15 @@ userForm.addEventListener('submit', async (e) => {
 
         if (docId) {
             await updateDoc(doc(db, "users", docId), userData);
-            alert('User updated successfully!');
+            showToast('User updated successfully!', 'success');
         } else {
             if (!password) {
-                alert('Password is required for new users.');
+                showToast('Password is required for new users.', 'warning');
                 return;
             }
             const usersCollection = collection(db, "users");
             await addDoc(usersCollection, userData);
-            alert('User added successfully!');
+            showToast('User added successfully!', 'success');
         }
 
         userForm.reset();
@@ -638,7 +909,7 @@ userForm.addEventListener('submit', async (e) => {
 
     } catch (error) {
         console.error("Error saving user: ", error);
-        alert('Error saving user: ' + error.message);
+        showToast('Error saving user: ' + error.message, 'error');
     }
 });
 
@@ -785,7 +1056,7 @@ if (schemeForm) {
         // gather slabs
         const slabRows = document.querySelectorAll('.slab-row');
         if (slabRows.length === 0) {
-            alert('Please add at least one slab.');
+            showToast('Please add at least one slab.', 'warning');
             return;
         }
 
@@ -800,7 +1071,7 @@ if (schemeForm) {
             const total = parseFloat(row.querySelector('input[name="total[]"]').value);
 
             if (minAmount > maxAmount) {
-                alert('Min amount cannot be greater than max amount.');
+                showToast('Min amount cannot be greater than max amount.', 'warning');
                 hasError = true;
                 return;
             }
@@ -832,11 +1103,11 @@ if (schemeForm) {
 
             if (docId) {
                 await updateDoc(doc(db, "gst_schemes", docId), schemeData);
-                alert('Scheme updated successfully');
+                showToast('Scheme updated successfully', 'success');
             } else {
                 schemeData.createdAt = new Date();
                 await addDoc(collection(db, "gst_schemes"), schemeData);
-                alert('Scheme added successfully');
+                showToast('Scheme added successfully', 'success');
             }
 
             schemePopup.classList.add('hidden');
@@ -845,7 +1116,7 @@ if (schemeForm) {
 
         } catch (error) {
             console.error("Error saving scheme:", error);
-            alert("Error saving scheme: " + error.message);
+            showToast("Error saving scheme: " + error.message, "error");
         }
     });
 }
@@ -979,6 +1250,7 @@ let isAutoBillEnabled = false;
 let activeBranchPrintEnable = false;
 let currentNextBillNoVal = 1;
 let currentBranchName = '';
+let currentBranchCode = '';
 
 async function loadAutoInvoiceNumber() {
     const invoiceNoInput = document.getElementById('invoiceNo');
@@ -1038,6 +1310,7 @@ async function loadAutoInvoiceNumber() {
         if (matchedBranchDoc) {
             activeBranchDocId = matchedBranchDoc.id;
             currentBranchName = matchedBranchDoc.name || targetBranchName || 'HeadOffice';
+            currentBranchCode = (matchedBranchDoc.branchCode || matchedBranchDoc.name || 'INV').trim().toUpperCase();
             const autoBillSetting = (matchedBranchDoc.autoBillNo || '').trim().toLowerCase();
             const printSetting = (matchedBranchDoc.printEnable || '').trim().toLowerCase();
 
@@ -1045,9 +1318,6 @@ async function loadAutoInvoiceNumber() {
 
             if (autoBillSetting === 'yes') {
                 isAutoBillEnabled = true;
-
-                // Format branch code: e.g. "cgnr" -> "CGNR"
-                let code = (matchedBranchDoc.branchCode || matchedBranchDoc.name || 'INV').trim().toUpperCase();
 
                 // Format next bill no: e.g. 1 -> "001"
                 let rawNum = parseInt(matchedBranchDoc.nextBillNo, 10);
@@ -1057,9 +1327,9 @@ async function loadAutoInvoiceNumber() {
                 currentNextBillNoVal = rawNum;
 
                 const formattedNum = String(rawNum).padStart(3, '0');
-                const invoiceStr = `${code}/${formattedNum}`;
 
-                invoiceNoInput.value = invoiceStr;
+                // Display only bill number in billing input field
+                invoiceNoInput.value = formattedNum;
                 invoiceNoInput.readOnly = true;
                 invoiceNoInput.style.backgroundColor = '#e2e8f0';
                 invoiceNoInput.style.color = '#0f172a';
@@ -1077,13 +1347,62 @@ async function loadAutoInvoiceNumber() {
         console.error("Error loading auto invoice number:", err);
     }
 }
+async function getResolvedBranchCode(data) {
+    if (data.branchCode && data.branchCode.length < 10) {
+        return data.branchCode.trim().toUpperCase();
+    }
+
+    try {
+        const branchesSnap = await getDocs(collection(db, "branches"));
+        let foundCode = '';
+        const targetId = (data.branchId || data.branchName || '').trim().toLowerCase();
+
+        branchesSnap.forEach(d => {
+            const bData = d.data() || {};
+            const bId = d.id.trim().toLowerCase();
+            const bName = (bData.name || '').trim().toLowerCase();
+            const bCode = (bData.branchCode || '').trim().toLowerCase();
+
+            if (bId === targetId || bName === targetId || bCode === targetId || d.id === data.branchId) {
+                foundCode = (bData.branchCode || bData.name || '').trim().toUpperCase();
+            }
+        });
+
+        if (foundCode) return foundCode;
+    } catch (e) {
+        console.error("Error resolving branch code:", e);
+    }
+
+    if (data.invoiceNo && data.invoiceNo.includes('/')) {
+        const prefix = data.invoiceNo.split('/')[0].trim().toUpperCase();
+        if (prefix && prefix.length < 10) return prefix;
+    }
+
+    return (currentBranchCode || 'INV').trim().toUpperCase();
+}
+
 // Function to handle auto printing matching the exact ART Leasing Limited PDF template
-function printInvoiceData(data) {
+async function printInvoiceData(data) {
     let printSection = document.getElementById('print-section');
     if (!printSection) {
         printSection = document.createElement('div');
         printSection.id = 'print-section';
         document.body.appendChild(printSection);
+    }
+
+    const branchCodeToUse = await getResolvedBranchCode(data);
+
+    let rawNum = '001';
+    if (data.invoiceNo) {
+        const parts = String(data.invoiceNo).trim().split('/');
+        rawNum = parts.length > 1 ? parts[1] : parts[0];
+    }
+    const formattedNum = String(rawNum).padStart(3, '0');
+    const printInvoiceNo = `${branchCodeToUse}/${formattedNum}`;
+
+    let printBranchName = data.branchName || '';
+    if (!printBranchName || printBranchName.length > 15) {
+        printBranchName = currentBranchName || branchCodeToUse;
     }
 
     const formatHalf = (copyType) => {
@@ -1098,9 +1417,9 @@ function printInvoiceData(data) {
                 <div class="copy-badge">${copyType} COPY</div>
                 <div class="art-header-box">
                     <h1 class="art-company-name">A R T Leasing Limited</h1>
-                    <div class="art-address">Govt.Hospital .JN, M.C Road ,Chengannur</div>
+                    <div class="art-address">HO:Govt.Hospital .JN, M.C Road ,Chengannur</div>
                     <div class="art-domain">admn@artleasingltd.in | www.artleasingltd.in</div>
-                    <div class="art-cin-gst">CIN: 12345678925422 &nbsp;&nbsp;&nbsp;&nbsp; GST: 152154215462</div>
+                    <div class="art-cin-gst">CIN:U65910KL1990PLC005904 &nbsp;&nbsp; GST:32AACCA6821G2Z3</div>
                 </div>
                 
                 <div class="art-info-grid">
@@ -1110,8 +1429,8 @@ function printInvoiceData(data) {
                     </div>
                     <div class="art-inv-box">
                     <div class="art-info-row"><span>Date :</span> <strong>${dateStr}</strong></div>
-                        <div class="art-info-row"><span>Branch :</span> <strong>${data.branchName || ''}</strong></div>                        
-                        <div class="art-info-row"><span>Invoice No:</span> <strong>${data.invoiceNo || ''}</strong></div>
+                        <div class="art-info-row"><span>Branch :</span> <strong>${printBranchName}</strong></div>                        
+                        <div class="art-info-row"><span>Invoice No:</span> <strong>${printInvoiceNo}</strong></div>
                     </div>
                 </div>
 
@@ -1128,20 +1447,20 @@ function printInvoiceData(data) {
                     </thead>
                     <tbody>
                         <tr class="item-row">
-                            <td class="td-desc">Processing Charges (Loan No: ${loanStr})</td>
-                            <td class="td-rate">₹ ${rateVal}</td>
-                            <td class="td-sgst">₹ ${totalTax / 2}</td>
-                            <td class="td-cgst">₹ ${totalTax / 2}</td>
-                             <td class="td-tax">₹ ${totalTax}</td>
-                            <td class="td-total">₹ ${totalVal}</td>
+                            <td class="th-desc">Processing Charges (Loan No: ${loanStr})</td>
+                            <td class="th-rate">₹ ${rateVal}</td>
+                            <td class="th-sgst">₹ ${totalTax / 2}</td>
+                            <td class="th-cgst">₹ ${totalTax / 2}</td>
+                             <td class="th-tax">₹ ${totalTax}</td>
+                            <td class="th-total">₹ ${totalVal}</td>
                         </tr>
                         <tr class="spacer-row">
-                            <td class="td-desc"></td>
-                            <td class="td-rate"></td>
-                            <td class="td-sgst"></td>
-                            <td class="td-cgst"></td>
-                            <td class="td-tax"></td>
-                            <td class="td-total"></td>
+                            <td class="th-desc"></td>
+                            <td class="th-rate"></td>
+                            <td class="th-sgst"></td>
+                            <td class="th-cgst"></td>
+                            <td class="th-tax"></td>
+                            <td class="th-total"></td>
                         </tr>
                         <tr class="grand-total-row">
                             <td colspan="5" class="grand-total-label">Grand Total</td>
@@ -1184,11 +1503,12 @@ window.deleteInvoice = async function (id) {
     if (!confirm("Are you sure you want to delete this invoice?")) return;
     try {
         await deleteDoc(doc(db, "invoices", id));
-        alert("Invoice deleted successfully.");
+        showToast("Invoice deleted successfully.", "success");
         loadReports();
+        loadDashboardData();
     } catch (err) {
         console.error("Error deleting invoice:", err);
-        alert("Error deleting invoice: " + err.message);
+        showToast("Error deleting invoice: " + err.message, "error");
     }
 };
 
@@ -1215,23 +1535,26 @@ if (billingForm) {
         const total = parseFloat(document.getElementById('Total').value) || 0;
 
         if (!billDate || !invoiceNo || !loanNo || !customerName || loanAmount <= 0) {
-            alert("Please fill all required billing fields.");
+            showToast("Please fill all required billing fields.", "warning");
             if (saveBtn) saveBtn.disabled = false;
             return;
         }
 
         let branchName = currentBranchName;
         let branchId = activeBranchDocId;
+        let branchCode = currentBranchCode;
 
-        if (currentUser) {
-            if (currentUser.role === 'branch' && currentUser.branch) {
-                branchName = currentUser.branch;
-            }
+        // Format full invoice number for database saving, printing, and reports: "branchcode/number"
+        let fullInvoiceNo = invoiceNo;
+        if (!fullInvoiceNo.includes('/')) {
+            const codeToUse = (branchCode || 'INV').toUpperCase();
+            const formattedNum = fullInvoiceNo.padStart(3, '0');
+            fullInvoiceNo = `${codeToUse}/${formattedNum}`;
         }
 
         const invoiceData = {
             billDate,
-            invoiceNo,
+            invoiceNo: fullInvoiceNo,
             loanNo,
             customerName,
             loanAmount,
@@ -1241,6 +1564,7 @@ if (billingForm) {
             total,
             branchName: branchName || 'HeadOffice',
             branchId: branchId || '',
+            branchCode: branchCode || '',
             timestamp: new Date()
         };
 
@@ -1259,7 +1583,7 @@ if (billingForm) {
                 }
             }
 
-            alert("Invoice saved successfully!");
+            showToast("Invoice saved successfully!", "success");
 
             // Print invoice if print is enabled for active branch
             if (activeBranchPrintEnable) {
@@ -1270,10 +1594,11 @@ if (billingForm) {
             billingForm.reset();
             document.getElementById('billDate').value = new Date().toISOString().split('T')[0];
             loadAutoInvoiceNumber();
+            loadDashboardData();
 
         } catch (error) {
             console.error("Error saving invoice:", error);
-            alert("Error saving invoice: " + error.message);
+            showToast("Error saving invoice: " + error.message, "error");
         } finally {
             if (saveBtn) saveBtn.disabled = false;
         }
@@ -1287,13 +1612,13 @@ window.printInvoice = async function (entryId) {
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
-            alert("Invoice data not found.");
+            showToast("Invoice data not found.", "error");
             return;
         }
-        printInvoiceData(docSnap.data());
+        await printInvoiceData(docSnap.data());
     } catch (err) {
         console.error("Error printing invoice:", err);
-        alert("Failed to load invoice for printing.");
+        showToast("Failed to load invoice for printing.", "error");
     }
 };
 

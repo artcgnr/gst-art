@@ -1,6 +1,0 @@
-CompanyName:"A R T LEASING LIMITED",
-Address:"Govt.Hospital Jn., M.C Road, Chengannur, Alappuzha-689121",
-email:"admn@artleasinglimited.in",
-website:"www.artleasinglimited.in",
-cin:"10024352125122",
-gst:"32AABH00126842"

@@ -11,10 +11,13 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <link rel="shortcut icon" type="shortcuticon" href="im">
+    <link rel="shortcut icon" type="shortcuticon" href="box.png">
 </head>
 
 <body>
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
     <!-- App Container -->
     <div id="app">
 
@@ -35,10 +38,12 @@
                         <label for="password">Password</label>
                         <input type="password" id="password" name="password" placeholder="Enter password" required>
                     </div>
-                    <button type="submit" class="btn-primary" id="loginBtn">
-                        <span>Login</span>
-                        <div class="spinner hidden" id="loginSpinner"></div>
-                    </button>
+                    <div class="login-btn">
+                        <button type="submit" class="btn-primary" id="loginBtn">
+                            <span>Login</span>
+                            <div class="spinner hidden" id="loginSpinner"></div>
+                        </button>
+                    </div>
                     <p id="loginError" class="error-msg hidden"></p>
                 </form>
             </div>
@@ -256,8 +261,113 @@
 
                 <!-- admin dashboard-->
                 <div id="tab-dash" class="tab-content">
-                    <div class="card glass billing-card">
+                    <div class="dashboard-container">
+                        <!-- Top Banner / Header -->
+                        <div class="dash-header glass">
+                            <div class="dash-welcome">
+                                <h2><i class="fa-solid fa-chart-line"></i> Business Dashboard</h2>
+                                <p>Real-time GST billing insights & key metrics</p>
+                            </div>
+                            <div class="dash-quick-actions">
+                                <!--
+                                <button onclick="switchTab('billing')" class="btn-primary">
+                                    <i class="fa-solid fa-plus"></i> New Invoice
+                                </button>
+                                -->
+                                <button onclick="switchTab('report')" class="btn-secondary">
+                                    <i class="fa-solid fa-file-lines"></i> Reports
+                                </button>
+                            </div>
+                        </div>
 
+                        <!-- KPI Summary Cards Grid -->
+                        <div class="kpi-grid">
+                            <div class="kpi-card glass kpi-blue">
+                                <div class="kpi-icon"><i class="fa-solid fa-file-invoice"></i></div>
+                                <div class="kpi-info">
+                                    <span class="kpi-title">Total Invoices</span>
+                                    <h3 id="dashTotalInvoices">0</h3>
+                                    <span class="kpi-subtext">All time generated</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card glass kpi-green">
+                                <div class="kpi-icon"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+                                <div class="kpi-info">
+                                    <span class="kpi-title">Total Loan Amount</span>
+                                    <h3 id="dashTotalLoan">₹0.00</h3>
+                                    <span class="kpi-subtext">Total loan disbursed</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card glass kpi-purple">
+                                <div class="kpi-icon"><i class="fa-solid fa-percent"></i></div>
+                                <div class="kpi-info">
+                                    <span class="kpi-title">GST Collected</span>
+                                    <h3 id="dashTotalGst">₹0.00</h3>
+                                    <span class="kpi-subtext">SGST + CGST Total</span>
+                                </div>
+                            </div>
+                            <div class="kpi-card glass kpi-amber">
+                                <div class="kpi-icon"><i class="fa-solid fa-wallet"></i></div>
+                                <div class="kpi-info">
+                                    <span class="kpi-title">Total Charges</span>
+                                    <h3 id="dashTotalCharges">₹0.00</h3>
+                                    <span class="kpi-subtext">Processing fees</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Main Dashboard Analytics Section -->
+                        <div class="dash-main-grid">
+                            <!-- Branch Performance Table -->
+                            <div class="card glass dash-card">
+                                <div class="card-header">
+                                    <h3><i class="fa-solid fa-building"></i> Branch Performance</h3>
+                                    <span class="badge" id="dashBranchCount">0 Branches</span>
+                                </div>
+                                <div class="table-container">
+                                    <table class="dash-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Branch Name</th>
+                                                <th>Invoices</th>
+                                                <th>Total Loan (₹)</th>
+                                                <th>GST Collected (₹)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="dashBranchTbody">
+                                            <tr>
+                                                <td colspan="4" class="loading-td">Loading performance...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Recent Invoices List -->
+                            <div class="card glass dash-card">
+                                <div class="card-header">
+                                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Invoices</h3>
+                                    <button onclick="switchTab('report')" class="btn-link">View All</button>
+                                </div>
+                                <div class="table-container">
+                                    <table class="dash-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Invoice No</th>
+                                                <th>Date</th>
+                                                <th>Customer</th>
+                                                <th>Total (₹)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="dashRecentInvoicesTbody">
+                                            <tr>
+                                                <td colspan="4" class="loading-td">Loading invoices...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <!-- billing Tab -->
@@ -286,13 +396,13 @@
                                         <div class="input-box">
                                             <label for="invoiceNo"><i class="fa-solid fa-hashtag"></i> Invoice
                                                 No</label>
-                                            <input type="text" id="invoiceNo" placeholder="INV-001" required
+                                            <input type="text" id="invoiceNo" placeholder="Invoice Number" required
                                                 autocomplete="off">
                                         </div>
                                         <div class="input-box">
                                             <label for="loanNo"><i class="fa-solid fa-file-signature"></i> Loan
                                                 No</label>
-                                            <input type="text" id="loanNo" placeholder="LN-1001" required
+                                            <input type="text" id="loanNo" placeholder="Pledge Number" required
                                                 autocomplete="off">
                                         </div>
                                     </div>
@@ -306,8 +416,8 @@
                                     <div class="input-box highlight-input">
                                         <label for="loanAmount"><i class="fa-solid fa-indian-rupee-sign"></i> Loan
                                             Amount (₹)</label>
-                                        <input type="number" id="loanAmount" placeholder="e.g. 50000" min="0" step="any"
-                                            required autocomplete="off">
+                                        <input type="number" id="loanAmount" placeholder="Loan Amount" min="0"
+                                            step="any" required autocomplete="off">
                                     </div>
                                 </div>
 
@@ -419,7 +529,7 @@
                                         <th>SGST(9%)</th>
                                         <th>CGST(9%)</th>
                                         <th>Total</th>
-                                        <th class="hidden">Actions</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="reportTbody">
@@ -526,8 +636,6 @@
                         </div>
                     </div>
                 </div>
-
-
 
             </main>
         </section>

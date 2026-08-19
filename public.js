@@ -13,12 +13,12 @@ export function formatDate(dateString) {
 // Branch Drop List using Firebase
 export async function getBranchDropList(userBranch, branchDrop) {
     const snapshot = await getDocs(collection(db, "branches"));
+    if (userBranch) userBranch.innerHTML = '<option value="" disabled selected>Select Branch</option>';
     snapshot.forEach((doc) => {
         const option = document.createElement("option");
         option.text = doc.data().name;
         option.value = doc.id;
-        userBranch.appendChild(option);
-        branchDrop.appendChild(option.cloneNode(true));
+        if (userBranch) userBranch.appendChild(option);
     });
 }
 
