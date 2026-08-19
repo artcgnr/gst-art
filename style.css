@@ -613,7 +613,7 @@ select:focus {
 
 .table-container {
     margin-top: 0;
-    max-height: calc(118vh - 250px);
+    max-height: calc(108vh - 250px);
     overflow: auto;
     border-radius: 8px;
     border: 1px solid var(--border-color);
