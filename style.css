@@ -658,6 +658,23 @@ td {
     border-right: 1px solid #d1d5db;
 }
 
+th[onclick] {
+    user-select: none;
+    transition: background 0.2s ease;
+}
+
+th[onclick]:hover {
+    background: #4338ca;
+}
+
+th i.fa-sort,
+th i.fa-sort-up,
+th i.fa-sort-down {
+    margin-left: 4px;
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
 td:last-child {
     border-right: none;
 }

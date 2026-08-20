@@ -520,18 +520,17 @@
                             <table id="reportTable">
                                 <thead>
                                     <tr>
-                                        <th>Date</th>
-                                        <th>Invoice No</th>
-                                        <th>Loan No</th>
-                                        <th>Customer</th>
-                                        <th>Loan Amt</th>
-                                        <th>Charges</th>
-                                        <th>SGST(9%)</th>
-                                        <th>CGST(9%)</th>
-                                        <th>Total</th>
+                                        <th onclick="sortReportTable('date')" style="cursor: pointer;" title="Sort by Date">Date <i id="sortIcon-date" class="fa-solid fa-sort-down"></i></th>
+                                        <th onclick="sortReportTable('invoiceNo')" style="cursor: pointer;" title="Sort by Invoice No">Invoice No <i id="sortIcon-invoiceNo" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('loanNo')" style="cursor: pointer;" title="Sort by Loan No">Loan No <i id="sortIcon-loanNo" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('customerName')" style="cursor: pointer;" title="Sort by Customer">Customer <i id="sortIcon-customerName" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('loanAmount')" style="cursor: pointer;" title="Sort by Loan Amt">Loan Amt <i id="sortIcon-loanAmount" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('charges')" style="cursor: pointer;" title="Sort by Charges">Charges <i id="sortIcon-charges" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('sgst')" style="cursor: pointer;" title="Sort by SGST">SGST(9%) <i id="sortIcon-sgst" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('cgst')" style="cursor: pointer;" title="Sort by CGST">CGST(9%) <i id="sortIcon-cgst" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('total')" style="cursor: pointer;" title="Sort by Total">Total <i id="sortIcon-total" class="fa-solid fa-sort"></i></th>
                                         <th>Actions</th>
                                     </tr>
-                                </thead>
                                 <tbody id="reportTbody">
                                     <tr>
                                         <td colspan="10" class="loading-td">Loading data...</td>

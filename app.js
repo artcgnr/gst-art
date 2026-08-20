@@ -364,15 +364,16 @@ async function loadDashboardData() {
             }
         }
 
-        // Render Recent Invoices
+         // Render Recent Invoices
         if (dashRecentInvoicesTbody) {
             if (allInvoices.length === 0) {
                 dashRecentInvoicesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">No invoices generated yet.</td></tr>';
             } else {
                 allInvoices.sort((a, b) => {
-                    const timeA = a.timestamp ? (a.timestamp.seconds || new Date(a.timestamp).getTime()) : (a.billDate ? new Date(a.billDate).getTime() : 0);
-                    const timeB = b.timestamp ? (b.timestamp.seconds || new Date(b.timestamp).getTime()) : (b.billDate ? new Date(b.billDate).getTime() : 0);
-                    return timeB - timeA;
+                    const dateA = getDocDateMs(a);
+                    const dateB = getDocDateMs(b);
+                    if (dateA !== dateB) return dateB - dateA;
+                    return getDocTimeMs(b) - getDocTimeMs(a);
                 });
 
                 const recent = allInvoices.slice(0, 5);
@@ -399,8 +400,158 @@ async function loadDashboardData() {
 }
 
 // -------------------------------------------------------------
-// Reports Handling
+// Reports Handling & Date-based Sorting
 // -------------------------------------------------------------
+let currentReportDocs = [];
+let currentBranchCodeMap = new Map();
+let reportSortKey = 'date';
+let reportSortOrder = 'desc';
+
+function getDocDateMs(doc) {
+    const dateStr = doc.billDate || doc.date;
+    if (dateStr) {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) return d.getTime();
+    }
+    if (doc.timestamp) {
+        if (typeof doc.timestamp.toDate === 'function') {
+            return doc.timestamp.toDate().getTime();
+        }
+        if (typeof doc.timestamp.seconds === 'number') {
+            return doc.timestamp.seconds * 1000;
+        }
+        const d = new Date(doc.timestamp);
+        if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return 0;
+}
+
+function getDocTimeMs(doc) {
+    if (doc.timestamp) {
+        if (typeof doc.timestamp.toDate === 'function') {
+            return doc.timestamp.toDate().getTime();
+        }
+        if (typeof doc.timestamp.seconds === 'number') {
+            return doc.timestamp.seconds * 1000;
+        }
+        const d = new Date(doc.timestamp);
+        if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return 0;
+}
+
+function sortReportDocs(docs, key = 'date', order = 'desc') {
+    const dir = order === 'asc' ? 1 : -1;
+    return docs.sort((a, b) => {
+        if (key === 'date') {
+            const dateA = getDocDateMs(a);
+            const dateB = getDocDateMs(b);
+            if (dateA !== dateB) return (dateA - dateB) * dir;
+
+            const timeA = getDocTimeMs(a);
+            const timeB = getDocTimeMs(b);
+            if (timeA !== timeB) return (timeA - timeB) * dir;
+
+            return String(a.invoiceNo || '').localeCompare(String(b.invoiceNo || '')) * dir;
+        } else if (key === 'invoiceNo') {
+            return String(a.invoiceNo || '').localeCompare(String(b.invoiceNo || '')) * dir;
+        } else if (key === 'loanNo') {
+            return String(a.loanNo || '').localeCompare(String(b.loanNo || '')) * dir;
+        } else if (key === 'customerName') {
+            return String(a.customerName || '').localeCompare(String(b.customerName || '')) * dir;
+        } else if (key === 'loanAmount') {
+            return ((parseFloat(a.loanAmount) || 0) - (parseFloat(b.loanAmount) || 0)) * dir;
+        } else if (key === 'charges') {
+            return ((parseFloat(a.charges) || 0) - (parseFloat(b.charges) || 0)) * dir;
+        } else if (key === 'sgst') {
+            return ((parseFloat(a.sgst) || 0) - (parseFloat(b.sgst) || 0)) * dir;
+        } else if (key === 'cgst') {
+            return ((parseFloat(a.cgst) || 0) - (parseFloat(b.cgst) || 0)) * dir;
+        } else if (key === 'total') {
+            return ((parseFloat(a.total) || 0) - (parseFloat(b.total) || 0)) * dir;
+        }
+        return 0;
+    });
+}
+
+function updateSortIcons(activeKey, order) {
+    const keys = ['date', 'invoiceNo', 'loanNo', 'customerName', 'loanAmount', 'charges', 'sgst', 'cgst', 'total'];
+    keys.forEach(k => {
+        const icon = document.getElementById(`sortIcon-${k}`);
+        if (icon) {
+            if (k === activeKey) {
+                icon.className = `fa-solid ${order === 'asc' ? 'fa-sort-up' : 'fa-sort-down'}`;
+            } else {
+                icon.className = 'fa-solid fa-sort';
+            }
+        }
+    });
+}
+
+function renderReportTable(docs, branchCodeMap) {
+    const tbody = document.getElementById('reportTbody');
+    if (!tbody) return;
+
+    if (!docs || docs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No records found for this criteria.</td></tr>';
+        return;
+    }
+
+    const showDelete = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'headoffice'));
+
+    let html = '';
+    docs.forEach((data) => {
+        let displayInvoiceNo = (data.invoiceNo || '').trim();
+        if (displayInvoiceNo) {
+            const parts = displayInvoiceNo.split('/');
+            let rawPrefix = parts.length > 1 ? parts[0] : '';
+            let rawNum = parts.length > 1 ? parts[1] : parts[0];
+
+            let resolvedCode = (branchCodeMap && branchCodeMap.get(rawPrefix.toLowerCase())) ||
+                (branchCodeMap && branchCodeMap.get((data.branchId || '').trim().toLowerCase())) ||
+                (branchCodeMap && branchCodeMap.get((data.branchName || '').trim().toLowerCase())) ||
+                (data.branchCode || rawPrefix || 'INV');
+
+            displayInvoiceNo = `${String(resolvedCode).toUpperCase()}/${rawNum.padStart(3, '0')}`;
+        }
+
+        html += `
+            <tr>                    
+                <td>${formatDate(data.billDate)}</td>
+                <td>${displayInvoiceNo}</td>
+                <td>${data.loanNo || ''}</td>
+                <td>${data.customerName || ''}</td>
+                <td>₹${Number(data.loanAmount || 0).toLocaleString('en-IN')}</td>
+                <td>₹${Number(data.charges || 0).toLocaleString('en-IN')}</td>
+                <td>₹${Number(data.sgst || 0).toLocaleString('en-IN')}</td>                    
+                <td>₹${Number(data.cgst || 0).toLocaleString('en-IN')}</td>                    
+                <td>₹${Number(data.total || 0).toLocaleString('en-IN')}</td>
+                <td>
+                    <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
+                        <button class="btn-primary" onclick="printInvoice('${data.id}')" title="Print Invoice" style="padding: 4px 8px; font-size: 0.75rem;"><i class="fa-solid fa-print"></i></button>
+                        ${showDelete ? `<button class="btn-secondary" onclick="deleteInvoice('${data.id}')" title="Delete Invoice" style="padding: 4px 8px; font-size: 0.75rem; background: var(--error); border: none; color: white;"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+    updateSortIcons(reportSortKey, reportSortOrder);
+}
+
+window.sortReportTable = function (key) {
+    if (reportSortKey === key) {
+        reportSortOrder = reportSortOrder === 'desc' ? 'asc' : 'desc';
+    } else {
+        reportSortKey = key;
+        reportSortOrder = (key === 'date' || key === 'total' || key === 'loanAmount') ? 'desc' : 'asc';
+    }
+
+    sortReportDocs(currentReportDocs, reportSortKey, reportSortOrder);
+    renderReportTable(currentReportDocs, currentBranchCodeMap);
+};
+
 async function loadReports() {
     if (!currentUser) return;
 
@@ -413,6 +564,7 @@ async function loadReports() {
         const querySnapshot = await getDocs(collection(db, "invoices"));
 
         if (querySnapshot.empty) {
+            currentReportDocs = [];
             tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No records found.</td></tr>';
             return;
         }
@@ -448,6 +600,8 @@ async function loadReports() {
                 }
             });
         });
+
+        currentBranchCodeMap = branchCodeMap;
 
         // Filter based on User Role & Selection
         let filteredDocs = [];
@@ -533,60 +687,23 @@ async function loadReports() {
         }
 
         if (filteredDocs.length === 0) {
+            currentReportDocs = [];
             tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No records found for this criteria.</td></tr>';
             return;
         }
 
-        // Sort by timestamp descending
-        filteredDocs.sort((a, b) => new Date(b.timestamp || b.billDate) - new Date(a.timestamp || a.billDate));
+        // Save current filtered documents and sort by active key (default Date descending)
+        currentReportDocs = filteredDocs;
+        sortReportDocs(currentReportDocs, reportSortKey, reportSortOrder);
 
-        const showDelete = (currentUser.role === 'admin' || currentUser.role === 'headoffice');
-
-        let html = '';
-        filteredDocs.forEach((data) => {
-            let displayInvoiceNo = (data.invoiceNo || '').trim();
-            if (displayInvoiceNo) {
-                const parts = displayInvoiceNo.split('/');
-                let rawPrefix = parts.length > 1 ? parts[0] : '';
-                let rawNum = parts.length > 1 ? parts[1] : parts[0];
-
-                let resolvedCode = branchCodeMap.get(rawPrefix.toLowerCase()) ||
-                    branchCodeMap.get((data.branchId || '').trim().toLowerCase()) ||
-                    branchCodeMap.get((data.branchName || '').trim().toLowerCase()) ||
-                    (data.branchCode || rawPrefix || 'INV');
-
-                displayInvoiceNo = `${String(resolvedCode).toUpperCase()}/${rawNum.padStart(3, '0')}`;
-            }
-
-            html += `
-                <tr>                    
-                    <td>${formatDate(data.billDate)}</td>
-                    <td>${displayInvoiceNo}</td>
-                    <td>${data.loanNo || ''}</td>
-                    <td>${data.customerName || ''}</td>
-                    <td>₹${Number(data.loanAmount || 0).toLocaleString('en-IN')}</td>
-                    <td>₹${Number(data.charges || 0).toLocaleString('en-IN')}</td>
-                    <td>₹${Number(data.sgst || 0).toLocaleString('en-IN')}</td>                    
-                    <td>₹${Number(data.cgst || 0).toLocaleString('en-IN')}</td>                    
-                    <td>₹${Number(data.total || 0).toLocaleString('en-IN')}</td>
-                    <td>
-                        <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
-                            <button class="btn-primary" onclick="printInvoice('${data.id}')" title="Print Invoice" style="padding: 4px 8px; font-size: 0.75rem;"><i class="fa-solid fa-print"></i></button>
-                            ${showDelete ? `<button class="btn-secondary" onclick="deleteInvoice('${data.id}')" title="Delete Invoice" style="padding: 4px 8px; font-size: 0.75rem; background: var(--error); border: none; color: white;"><i class="fa-solid fa-trash"></i></button>` : ''}
-                        </div>
-                    </td>
-                </tr>
-            `;
-        });
-
-        tbody.innerHTML = html;
+        // Render report table
+        renderReportTable(currentReportDocs, currentBranchCodeMap);
 
     } catch (error) {
         console.error("Error loading reports: ", error);
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color: var(--error);">Error loading data.</td></tr>';
     }
 }
-
 
 // Populate Branch Filter for Admin & HeadOffice
 async function populateBranchFilter() {
