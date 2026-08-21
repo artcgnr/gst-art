@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <link rel="shortcut icon" type="shortcuticon" href="box.png">
+    <!-- SheetJS for Excel (.xlsx) Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -328,7 +330,7 @@
                                     <table class="dash-table">
                                         <thead>
                                             <tr>
-                                                <th>Branch Name</th>
+                                                <th>Branch</th>
                                                 <th>Invoices</th>
                                                 <th>Total Loan (₹)</th>
                                                 <th>GST Collected (₹)</th>
@@ -495,8 +497,6 @@
                             <div class="header-actions" style="display: flex; gap: 6px;">
                                 <button id="exportExcelBtn" class="btn-secondary" title="Export to excell"><i
                                         class="fa-solid fa-file-excel"></i></button>
-                                <button id="printPdfBtn" class="btn-secondary" title="Print"><i
-                                        class="fa-solid fa-print"></i></button>
                             </div>
                         </div>
                         <div class="filter-box">
@@ -520,17 +520,36 @@
                             <table id="reportTable">
                                 <thead>
                                     <tr>
-                                        <th onclick="sortReportTable('date')" style="cursor: pointer;" title="Sort by Date">Date <i id="sortIcon-date" class="fa-solid fa-sort-down"></i></th>
-                                        <th onclick="sortReportTable('invoiceNo')" style="cursor: pointer;" title="Sort by Invoice No">Invoice No <i id="sortIcon-invoiceNo" class="fa-solid fa-sort"></i></th>
-                                        <th onclick="sortReportTable('loanNo')" style="cursor: pointer;" title="Sort by Loan No">Loan No <i id="sortIcon-loanNo" class="fa-solid fa-sort"></i></th>
-                                        <th onclick="sortReportTable('customerName')" style="cursor: pointer;" title="Sort by Customer">Customer <i id="sortIcon-customerName" class="fa-solid fa-sort"></i></th>
-                                        <th onclick="sortReportTable('loanAmount')" style="cursor: pointer;" title="Sort by Loan Amt">Loan Amt <i id="sortIcon-loanAmount" class="fa-solid fa-sort"></i></th>
-                                        <th onclick="sortReportTable('charges')" style="cursor: pointer;" title="Sort by Charges">Charges <i id="sortIcon-charges" class="fa-solid fa-sort"></i></th>
-                                        <th onclick="sortReportTable('sgst')" style="cursor: pointer;" title="Sort by SGST">SGST(9%) <i id="sortIcon-sgst" class="fa-solid fa-sort"></i></th>
-                                        <th onclick="sortReportTable('cgst')" style="cursor: pointer;" title="Sort by CGST">CGST(9%) <i id="sortIcon-cgst" class="fa-solid fa-sort"></i></th>
-                                        <th onclick="sortReportTable('total')" style="cursor: pointer;" title="Sort by Total">Total <i id="sortIcon-total" class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('date')" style="cursor: pointer;"
+                                            title="Sort by Date">Date <i id="sortIcon-date"
+                                                class="fa-solid fa-sort-down"></i></th>
+                                        <th onclick="sortReportTable('invoiceNo')" style="cursor: pointer;"
+                                            title="Sort by Invoice No">Invoice No <i id="sortIcon-invoiceNo"
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('loanNo')" style="cursor: pointer;"
+                                            title="Sort by Loan No">Loan No <i id="sortIcon-loanNo"
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('customerName')" style="cursor: pointer;"
+                                            title="Sort by Customer">Customer <i id="sortIcon-customerName"
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('loanAmount')" style="cursor: pointer;"
+                                            title="Sort by Loan Amt">Loan Amt <i id="sortIcon-loanAmount"
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('charges')" style="cursor: pointer;"
+                                            title="Sort by Charges">Charges <i id="sortIcon-charges"
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('sgst')" style="cursor: pointer;"
+                                            title="Sort by SGST">SGST(9%) <i id="sortIcon-sgst"
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('cgst')" style="cursor: pointer;"
+                                            title="Sort by CGST">CGST(9%) <i id="sortIcon-cgst"
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th onclick="sortReportTable('total')" style="cursor: pointer;"
+                                            title="Sort by Total">Total <i id="sortIcon-total"
+                                                class="fa-solid fa-sort"></i></th>
                                         <th>Actions</th>
                                     </tr>
+                                </thead>
                                 <tbody id="reportTbody">
                                     <tr>
                                         <td colspan="10" class="loading-td">Loading data...</td>

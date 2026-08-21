@@ -349,11 +349,11 @@ async function loadDashboardData() {
                 dashBranchTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">No branch activity recorded yet.</td></tr>';
             } else {
                 let bHtml = '';
-                branchEntries.sort((a, b) => b[1].loan - a[1].loan);
+                branchEntries.sort((a, b) => a[0].localeCompare(b[0]));
                 branchEntries.forEach(([bName, stats]) => {
                     bHtml += `
                         <tr>
-                            <td style="font-weight: 600;"><i class="fa-solid fa-building" style="margin-right: 8px; color: #818cf8;"></i>${bName}</td>
+                            <td style="font-weight: 600; text-align: left;"><i class="fa-solid fa-building" style="margin-right: 8px; color: #818cf8;"></i>${bName}</td>
                             <td><span class="badge">${stats.count}</span></td>
                             <td style="font-weight: 600;">₹${stats.loan.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                             <td style="color: #34d399; font-weight: 600;">₹${stats.gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
@@ -364,7 +364,7 @@ async function loadDashboardData() {
             }
         }
 
-         // Render Recent Invoices
+        // Render Recent Invoices
         if (dashRecentInvoicesTbody) {
             if (allInvoices.length === 0) {
                 dashRecentInvoicesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">No invoices generated yet.</td></tr>';
@@ -386,7 +386,7 @@ async function loadDashboardData() {
                             <td style="font-weight: 600; color: #818cf8;">${inv.invoiceNo || '-'}</td>
                             <td style="font-size: 0.8rem; color: var(--text-muted);">${dateDisplay}</td>
                             <td>${inv.customerName || '-'}</td>
-                            <td style="font-weight: 700; color: #ffffff;">₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td style="font-weight: 700; color: #818cf8;">₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                         </tr>
                     `;
                 });
@@ -704,6 +704,7 @@ async function loadReports() {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color: var(--error);">Error loading data.</td></tr>';
     }
 }
+
 
 // Populate Branch Filter for Admin & HeadOffice
 async function populateBranchFilter() {
@@ -1533,7 +1534,7 @@ async function printInvoiceData(data) {
             <div class="receipt-box">
                 <div class="copy-badge">${copyType} COPY</div>
                 <div class="art-header-box">
-                    <h1 class="art-company-name">A R T Leasing Limited</h1>
+                   <h1 class="art-company-name">A R T Leasing Limited</h1>
                     <div class="art-address">HO:Govt.Hospital .JN, M.C Road ,Chengannur</div>
                     <div class="art-domain">admn@artleasingltd.in | www.artleasingltd.in</div>
                     <div class="art-cin-gst">CIN:U65910KL1990PLC005904 &nbsp;&nbsp; GST:32AACCA6821G2Z3</div>
@@ -1558,7 +1559,6 @@ async function printInvoiceData(data) {
                             <th class="th-rate">Rate</th>
                              <th class="th-rate">SGST(9%)</th>
                               <th class="th-rate">CGST(9%)</th>
-                            <th class="th-tax">Tax(18%)</th>
                             <th class="th-total">Total</th>
                         </tr>
                     </thead>
@@ -1568,7 +1568,6 @@ async function printInvoiceData(data) {
                             <td class="th-rate">₹ ${rateVal}</td>
                             <td class="th-sgst">₹ ${totalTax / 2}</td>
                             <td class="th-cgst">₹ ${totalTax / 2}</td>
-                             <td class="th-tax">₹ ${totalTax}</td>
                             <td class="th-total">₹ ${totalVal}</td>
                         </tr>
                         <tr class="spacer-row">
@@ -1576,11 +1575,10 @@ async function printInvoiceData(data) {
                             <td class="th-rate"></td>
                             <td class="th-sgst"></td>
                             <td class="th-cgst"></td>
-                            <td class="th-tax"></td>
                             <td class="th-total"></td>
                         </tr>
                         <tr class="grand-total-row">
-                            <td colspan="5" class="grand-total-label">Grand Total</td>
+                            <td colspan="4" class="grand-total-label">Grand Total</td>
                             <td class="grand-total-val">₹ ${totalVal}</td>
                         </tr>
                     </tbody>
@@ -1761,35 +1759,58 @@ if (printPdfBtn) {
     });
 }
 
-// Export Report Table to Excel (CSV)
+// Export Report Table to Excel (.xlsx / .xls)
 const exportExcelBtn = document.getElementById('exportExcelBtn');
 if (exportExcelBtn) {
     exportExcelBtn.addEventListener('click', () => {
         const table = document.getElementById('reportTable');
         if (!table) return;
 
-        let csv = [];
-        const rows = table.querySelectorAll('tr');
+        const fileName = `Invoice_Report_${new Date().toISOString().split('T')[0]}`;
 
-        for (let i = 0; i < rows.length; i++) {
-            const row = [], cols = rows[i].querySelectorAll('td, th');
-            // Skip action column (last column)
-            for (let j = 0; j < cols.length - 1; j++) {
-                let text = cols[j].innerText.replace(/"/g, '""').trim();
-                row.push('"' + text + '"');
+        if (typeof XLSX !== 'undefined') {
+            // Clone table and remove Actions column & sort icons
+            const cloneTable = table.cloneNode(true);
+            const headers = cloneTable.querySelectorAll('th');
+            headers.forEach(th => {
+                const icon = th.querySelector('i');
+                if (icon) icon.remove();
+            });
+            const rows = cloneTable.querySelectorAll('tr');
+            rows.forEach(row => {
+                if (row.lastElementChild) row.lastElementChild.remove();
+            });
+
+            const wb = XLSX.utils.table_to_book(cloneTable, { sheet: "Invoice Report" });
+            XLSX.writeFile(wb, `${fileName}.xlsx`);
+        } else {
+            // Fallback: Excel XML/HTML Blob (.xls)
+            let htmlTable = '<html><head><meta charset="utf-8"></head><body><table border="1">';
+            const rows = table.querySelectorAll('tr');
+            for (let i = 0; i < rows.length; i++) {
+                htmlTable += '<tr>';
+                const cols = rows[i].querySelectorAll('td, th');
+                // Skip action column (last column)
+                for (let j = 0; j < cols.length - 1; j++) {
+                    let cellText = cols[j].innerText.trim();
+                    if (rows[i].querySelector('th')) {
+                        htmlTable += `<th style="background-color: #4f46e5; color: #ffffff;">${cellText}</th>`;
+                    } else {
+                        htmlTable += `<td>${cellText}</td>`;
+                    }
+                }
+                htmlTable += '</tr>';
             }
-            if (row.length > 0) {
-                csv.push(row.join(','));
-            }
+            htmlTable += '</table></body></html>';
+
+            const blob = new Blob([htmlTable], { type: 'application/vnd.ms-excel' });
+            const downloadLink = document.createElement('a');
+            downloadLink.download = `${fileName}.xls`;
+            downloadLink.href = window.URL.createObjectURL(blob);
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
         }
-
-        const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
-        const downloadLink = document.createElement('a');
-        downloadLink.download = `Invoice_Report_${new Date().toISOString().split('T')[0]}.csv`;
-        downloadLink.href = window.URL.createObjectURL(csvFile);
-        downloadLink.style.display = 'none';
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
     });
 }

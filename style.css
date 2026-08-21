@@ -658,23 +658,6 @@ td {
     border-right: 1px solid #d1d5db;
 }
 
-th[onclick] {
-    user-select: none;
-    transition: background 0.2s ease;
-}
-
-th[onclick]:hover {
-    background: #4338ca;
-}
-
-th i.fa-sort,
-th i.fa-sort-up,
-th i.fa-sort-down {
-    margin-left: 4px;
-    font-size: 0.7rem;
-    opacity: 0.8;
-}
-
 td:last-child {
     border-right: none;
 }
@@ -693,6 +676,23 @@ th {
     border-bottom: 2px solid rgba(0, 0, 0, 0.15);
     border-right: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+th[onclick] {
+    user-select: none;
+    transition: background 0.2s ease;
+}
+
+th[onclick]:hover {
+    background: #4338ca;
+}
+
+th i.fa-sort,
+th i.fa-sort-up,
+th i.fa-sort-down {
+    margin-left: 4px;
+    font-size: 0.7rem;
+    opacity: 0.8;
 }
 
 th:last-child {
@@ -1280,26 +1280,26 @@ tbody tr:hover {
 
 /* KPI Color Variations */
 .kpi-blue .kpi-icon {
-    background: rgba(99, 102, 241, 0.2);
-    color: #818cf8;
+    background: rgba(99, 101, 241, 0.5);
+    color: #ffffff;
     border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
 .kpi-green .kpi-icon {
-    background: rgba(16, 185, 129, 0.2);
-    color: #34d399;
+    background: rgba(16, 185, 129, 0.637);
+    color: #ffffff;
     border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .kpi-purple .kpi-icon {
-    background: rgba(168, 85, 247, 0.2);
-    color: #c084fc;
+    background: rgba(169, 85, 247, 0.575);
+    color: #ffffff;
     border: 1px solid rgba(168, 85, 247, 0.3);
 }
 
 .kpi-amber .kpi-icon {
-    background: rgba(245, 158, 11, 0.2);
-    color: #fbbf24;
+    background: rgba(245, 159, 11, 0.473);
+    color: #ffffff;
     border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
@@ -1359,6 +1359,11 @@ tbody tr:hover {
     text-decoration: underline;
 }
 
+.dashboard-container .table-container {
+    height: 45vh;
+    overflow-y: auto;
+}
+
 .dash-table {
     width: 100%;
     border-collapse: collapse;
@@ -1368,17 +1373,19 @@ tbody tr:hover {
 .dash-table th {
     text-align: left;
     padding: 10px 12px;
-    color: var(--text-muted);
+    color: #fff;
     font-weight: 600;
     font-size: 0.8rem;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border-color);
+    text-align: center;
 }
 
 .dash-table td {
     padding: 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     color: #000;
+    text-align: center;
 }
 
 .dash-table tr:last-child td {
@@ -1399,6 +1406,10 @@ tbody tr:hover {
     @page {
         size: A4 portrait;
         margin: 8mm;
+    }
+
+    #app {
+        display: none !important;
     }
 
     body * {
@@ -1460,7 +1471,7 @@ tbody tr:hover {
     }
 
     .art-company-name {
-        font-size: 22px !important;
+        font-size: 18px !important;
         font-weight: bold !important;
         margin: 0 0 4px 0 !important;
         color: #000000 !important;
@@ -1468,13 +1479,13 @@ tbody tr:hover {
 
     .art-address,
     .art-domain {
-        font-size: 13px !important;
+        font-size: 12px !important;
         margin-bottom: 4px !important;
         color: #111111 !important;
     }
 
     .art-cin-gst {
-        font-size: 14px !important;
+        font-size: 13px !important;
         color: #222222 !important;
         font-weight: bolder !important;
     }
@@ -1497,7 +1508,7 @@ tbody tr:hover {
     }
 
     .art-field-value {
-        font-size: 16px !important;
+        font-size: 14px !important;
     }
 
     .art-inv-box {
@@ -1511,14 +1522,14 @@ tbody tr:hover {
     }
 
     .art-info-row {
-        font-size: 16px !important;
+        font-size: 13px !important;
         display: flex !important;
         justify-content: space-between !important;
         gap: 5px !important;
     }
 
     .invoice-table {
-        width: 100% !important;
+        min-width: 100% !important;
         border-collapse: collapse !important;
         flex: 1 !important;
     }
@@ -1543,29 +1554,24 @@ tbody tr:hover {
     }
 
     .th-rate {
-        width: 10% !important;
+        width: 8% !important;
         text-align: center !important;
     }
 
     .th-sgst,
     .th-cgst {
-        width: 10% !important;
-        text-align: center !important;
-    }
-
-    .th-tax {
-        width: 10% !important;
+        width: 8% !important;
         text-align: center !important;
     }
 
     .th-total {
-        width: 10% !important;
+        width: 8% !important;
         text-align: center !important;
-        border-right: none !important;
     }
 
+
     .invoice-table td {
-        font-size: 14px !important;
+        font-size: 13px !important;
         padding: 6px 8px !important;
         border-right: 1.5px solid #000000 !important;
         color: #000000 !important;
@@ -1573,8 +1579,7 @@ tbody tr:hover {
 
     .item-row .th-total,
     .spacer-row .th-total,
-    .grand-total-row .grand-total-val,
-    .invoice-table .th-total {
+    .grand-total-row .grand-total-val {
         border-right: none !important;
 
     }
