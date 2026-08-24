@@ -521,11 +521,11 @@ function renderReportTable(docs, branchCodeMap) {
                 <td>${displayInvoiceNo}</td>
                 <td>${data.loanNo || ''}</td>
                 <td>${data.customerName || ''}</td>
-                <td>₹${Number(data.loanAmount || 0).toLocaleString('en-IN')}</td>
-                <td>₹${Number(data.charges || 0).toLocaleString('en-IN')}</td>
-                <td>₹${Number(data.sgst || 0).toLocaleString('en-IN')}</td>                    
-                <td>₹${Number(data.cgst || 0).toLocaleString('en-IN')}</td>                    
-                <td>₹${Number(data.total || 0).toLocaleString('en-IN')}</td>
+                <td>${Number(data.loanAmount || 0).toLocaleString('en-IN')}</td>
+                <td>${Number(data.charges || 0).toLocaleString('en-IN')}</td>
+                <td>${Number(data.sgst || 0).toLocaleString('en-IN')}</td>                    
+                <td>${Number(data.cgst || 0).toLocaleString('en-IN')}</td>                    
+                <td>${Number(data.total || 0).toLocaleString('en-IN')}</td>
                 <td>
                     <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
                         <button class="btn-primary" onclick="printInvoice('${data.id}')" title="Print Invoice" style="padding: 4px 8px; font-size: 0.75rem;"><i class="fa-solid fa-print"></i></button>
