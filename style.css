@@ -703,10 +703,291 @@ tbody tr:hover {
     background-color: #f8fafc;
 }
 
+/* Report totals row */
+#reportTfoot td {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: #eef2ff;
+    font-size: .75rem;
+    font-weight: 700;
+    color: #1e1b4b;
+    border-top: 2px solid rgba(0, 0, 0, 0.15);
+    border-bottom: none;
+    text-transform: none;
+    padding: 10px 8px;
+}
+
+#reportTfoot .total-label {
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+}
+
+#reportTfoot .total-value {
+    color: #4338ca;
+    white-space: nowrap;
+}
+
+#reportTfoot .total-value.grand {
+    color: #047857;
+}
+
+/* Branch-wise summary table */
+#branchSummaryTable {
+    min-width: 900px;
+}
+
+#branchSummaryTable td {
+    text-transform: none;
+    font-size: .72rem;
+    white-space: nowrap;
+}
+
+#branchSummaryTable td.bt-total {
+    font-weight: 700;
+    color: #047857;
+}
+
+#branchSummaryTable tr.branch-summary-total td {
+    background: #eef2ff;
+    font-weight: 700;
+    color: #1e1b4b;
+    border-top: 2px solid rgba(0, 0, 0, 0.15);
+    border-bottom: none;
+}
+
+/* Month Lock */
+.month-lock-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.month-lock-item {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    background: rgba(255, 255, 255, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.month-lock-item.is-locked {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.month-lock-item .ml-name {
+    font-weight: 600;
+    font-size: .85rem;
+    color: #1e293b;
+}
+
+.month-lock-item .ml-status {
+    font-size: .72rem;
+    min-height: 1rem;
+}
+
+.ml-locked {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.ml-open {
+    color: #047857;
+}
+
+.ml-future {
+    color: var(--text-muted);
+}
+
+.month-lock-item .btn-lock,
+.month-lock-item .btn-unlock {
+    align-self: flex-start;
+    padding: 6px 12px;
+    font-size: .75rem;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.month-lock-item .btn-lock {
+    background: #dc2626;
+    color: #fff;
+}
+
+.month-lock-item .btn-unlock {
+    background: #0f766e;
+    color: #fff;
+}
+
+.month-lock-item .btn-lock:disabled,
+.month-lock-item .btn-unlock:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+
+/* Locked bill date feedback on the billing form */
+.input-box.locked-date input {
+    border-color: #dc2626 !important;
+    background: #fef2f2 !important;
+    color: #b91c1c !important;
+}
+
+.lock-note {
+    display: block;
+    margin-top: 6px;
+    font-size: .7rem;
+    color: #b91c1c;
+    line-height: 1.35;
+}
+
 .loading-td {
     text-align: center;
     padding: 3rem !important;
     color: var(--text-muted);
+}
+
+/* Standalone Branch Total / Trash pages */
+.branch-total-page,
+.trash-page {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    box-sizing: border-box;
+}
+
+.page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.page-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: .5rem 0 .25rem 0;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.page-title i {
+    color: #6366f1;
+}
+
+.page-subtitle {
+    font-size: .8rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .78rem;
+    color: #4f46e5;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.btn-back:hover {
+    text-decoration: underline;
+}
+
+/* Keep the sidebar shell and card chrome out of the way on these pages */
+#branch-total-view.active-view,
+#trash-view.active-view {
+    display: block;
+}
+
+#branch-total-view .form-card,
+#trash-view .form-card {
+    padding: 1.25rem;
+}
+
+/* Trash row actions */
+.trash-table td {
+    text-transform: none;
+    font-size: .75rem;
+}
+
+.trash-table .deleted-at {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.btn-restore {
+    background: #0f766e;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-restore:hover {
+    filter: brightness(1.1);
+}
+
+.btn-restore:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+
+.btn-reenter {
+    background: #7c3aed;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-reenter:hover {
+    filter: brightness(1.1);
+}
+
+.btn-reenter:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+
+.reenter-note {
+    display: block;
+    margin-top: 6px;
+    font-size: .7rem;
+    color: #6d28d9;
+    line-height: 1.35;
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-danger:hover {
+    filter: brightness(1.1);
+}
+
+.btn-danger:disabled {
+    opacity: .6;
+    cursor: wait;
 }
 
 /* Responsive */
@@ -1406,6 +1687,28 @@ tbody tr:hover {
     @page {
         size: A4 portrait;
         margin: 8mm;
+    }
+
+    /* The Branch Total and Trash pages have no #print-section, so they print themselves */
+    body:has(#branch-total-view) #app,
+    body:has(#trash-view) #app {
+        display: block !important;
+    }
+
+    body:has(#branch-total-view) *,
+    body:has(#trash-view) * {
+        visibility: visible !important;
+    }
+
+    body:has(#branch-total-view) .filter-box,
+    body:has(#branch-total-view) .header-actions,
+    body:has(#branch-total-view) .btn-back,
+    body:has(#branch-total-view) #toast-container,
+    body:has(#trash-view) .filter-box,
+    body:has(#trash-view) .header-actions,
+    body:has(#trash-view) .btn-back,
+    body:has(#trash-view) #toast-container {
+        display: none !important;
     }
 
     #app {

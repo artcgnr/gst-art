@@ -83,6 +83,12 @@
                                 <span class="nav-text">Invoice Reports</span>
                             </a>
                         </li>
+                        <li id="nav-branch-total">
+                            <a href="branch-total.html">
+                                <i class="fa-solid fa-chart-column"></i>
+                                <span class="nav-text">Branch Total</span>
+                            </a>
+                        </li>
                         <!-- Settings menu -->
                         <li id="nav-settings" class="has-submenu">
                             <a href="#" onclick="toggleSubmenu(event, 'settings-submenu')">
@@ -107,6 +113,18 @@
                                     <a href="#" onclick="switchTab('schemes')">
                                         <i class="fa-solid fa-percent"></i>
                                         <span class="nav-text">Schemes</span>
+                                    </a>
+                                </li>
+                                <li id="nav-monthlock">
+                                    <a href="#" onclick="switchTab('monthlock')">
+                                        <i class="fa-solid fa-lock"></i>
+                                        <span class="nav-text">Month Lock</span>
+                                    </a>
+                                </li>
+                                <li id="nav-trash">
+                                    <a href="trash.html">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                        <span class="nav-text">Trash</span>
                                     </a>
                                 </li>
                             </ul>
@@ -392,6 +410,7 @@
                                         <label for="billDate"><i class="fa-solid fa-calendar-days"></i> Invoice
                                             Date</label>
                                         <input type="date" id="billDate" required>
+                                        <small id="billDateLockNote" class="lock-note hidden"></small>
                                     </div>
 
                                     <div class="input-row-2">
@@ -400,6 +419,7 @@
                                                 No</label>
                                             <input type="text" id="invoiceNo" placeholder="Invoice Number" required
                                                 autocomplete="off">
+                                            <small id="reenterNote" class="reenter-note hidden"></small>
                                         </div>
                                         <div class="input-box">
                                             <label for="loanNo"><i class="fa-solid fa-file-signature"></i> Loan
@@ -555,6 +575,17 @@
                                         <td colspan="10" class="loading-td">Loading data...</td>
                                     </tr>
                                 </tbody>
+                                <tfoot id="reportTfoot" class="hidden">
+                                    <tr>
+                                        <td colspan="4" class="total-label" id="totalCountLabel">Total</td>
+                                        <td id="totalLoanAmount" class="total-value">0</td>
+                                        <td id="totalCharges" class="total-value">0</td>
+                                        <td id="totalSgst" class="total-value">0</td>
+                                        <td id="totalCgst" class="total-value">0</td>
+                                        <td id="totalGrand" class="total-value">0</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
@@ -651,6 +682,35 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings: Month Lock -->
+                <div id="tab-monthlock" class="tab-content hidden">
+                    <div class="card glass form-card">
+                        <div class="card-header report-header">
+                            <div>
+                                <h3><i class="fa-solid fa-lock"></i> Month Lock</h3>
+                                <p class="branch-subtitle">Lock a month to stop new invoices being saved in it</p>
+                            </div>
+                            <span class="badge" id="lockCountBadge">0 Locked</span>
+                        </div>
+
+                        <div class="filter-box">
+                            <div class="input-box">
+                                <label for="lockYearSelect">Year:</label>
+                                <select id="lockYearSelect"></select>
+                            </div>
+                            <div class="input-box">
+                                <button class="btn-secondary" id="addLockYearBtn" title="Add the next year to the list">
+                                    <i class="fa-solid fa-plus"></i> Add Year
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="monthLockGrid" class="month-lock-grid">
+                            <div class="loading-td">Loading months...</div>
                         </div>
                     </div>
                 </div>

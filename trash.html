@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trash | GST Billing</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" type="shortcuticon" href="box.png">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <div id="toast-container" class="toast-container"></div>
+
+    <div id="app">
+        <section id="trash-view" class="view active-view">
+            <div class="trash-page">
+                <!-- Page header -->
+                <div class="page-header">
+                    <div>
+                        <a href="index.html" class="btn-back">
+                            <i class="fa-solid fa-arrow-left"></i> Back
+                        </a>
+                        <h2 class="page-title"><i class="fa-solid fa-trash-can"></i> Deleted Invoices</h2>
+                        <p class="page-subtitle" id="trashSubtitle">No deleted invoices</p>
+                    </div>
+                    <div class="header-actions" style="display: flex; gap: 8px;">
+                        <button id="printTrashBtn" class="btn-secondary" title="Print"><i
+                                class="fa-solid fa-print"></i></button>
+                        <button id="exportTrashBtn" class="btn-secondary" title="Export to excel"><i
+                                class="fa-solid fa-file-excel"></i></button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="card glass form-card">
+                    <div class="filter-box">
+                        <div class="input-box">
+                            <label for="fromDate">From:</label>
+                            <input type="date" id="fromDate">
+                        </div>
+                        <div class="input-box">
+                            <label for="toDate">To:</label>
+                            <input type="date" id="toDate">
+                        </div>
+                        <div class="input-box" id="adminFilterBox">
+                            <label for="branchFilter">Branch:</label>
+                            <select id="branchFilter"></select>
+                        </div>
+                        <div class="input-box">
+                            <button class="btn-primary" id="searchBtn">Display</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deleted invoices table -->
+                <div class="card glass form-card">
+                    <div class="card-header report-header">
+                        <div>
+                            <h3><i class="fa-solid fa-recycle"></i> Restore a deleted invoice</h3>
+                            <p class="branch-subtitle">Invoices land back in their original branch with the same
+                                invoice number</p>
+                        </div>
+                        <span class="badge" id="trashCountBadge">0 Deleted</span>
+                    </div>
+                    <div class="table-container">
+                        <table id="trashTable" class="dash-table">
+                            <thead>
+                                <tr>
+                                    <th>Deleted</th>
+                                    <th>Bill Date</th>
+                                    <th>Invoice No</th>
+                                    <th>Branch</th>
+                                    <th>Loan No</th>
+                                    <th>Customer</th>
+                                    <th>Total (&#8377;)</th>
+                                    <th>Deleted By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trashTbody">
+                                <tr>
+                                    <td colspan="9" class="loading-td">Loading deleted invoices...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script type="module" src="trash.js"></script>
+</body>
+
+</html>

@@ -215,12 +215,16 @@ window.switchTab = function (tabName) {
     if (tabName === 'schemes') {
         loadSchemes();
     }
+    if (tabName === 'monthlock') {
+        loadMonthLocks();
+    }
     if (tabName === 'billing') {
         const billDateInput = document.getElementById('billDate');
         if (billDateInput && !billDateInput.value) {
             billDateInput.value = new Date().toISOString().split('T')[0];
         }
         loadAutoInvoiceNumber();
+        refreshBillDateLockState();
     }
 };
 
@@ -235,6 +239,8 @@ function setupDashboard(user) {
     const navBranches = document.getElementById('nav-branches');
     const navUsers = document.getElementById('nav-users');
     const navSchemes = document.getElementById('nav-schemes');
+    const navMonthLock = document.getElementById('nav-monthlock');
+    const navTrash = document.getElementById('nav-trash');
 
 
     if (user.role === 'admin' || user.role === 'headoffice') {
@@ -244,6 +250,9 @@ function setupDashboard(user) {
         navBranches.style.display = 'flex';
         navUsers.style.display = 'flex';
         if (navSchemes) navSchemes.style.display = 'flex';
+        if (navMonthLock) navMonthLock.style.display = 'flex';
+        // Only admin / head office can delete invoices, so only they restore them
+        if (navTrash) navTrash.style.display = 'flex';
         populateBranchFilter();
         window.switchTab('dash');
         loadDashboardData();
@@ -256,8 +265,17 @@ function setupDashboard(user) {
         navBranches.style.display = 'none';
         navUsers.style.display = 'none';
         if (navSchemes) navSchemes.style.display = 'none';
+        // Only admin / head office manage month locks
+        if (navMonthLock) navMonthLock.style.display = 'none';
+        if (navTrash) navTrash.style.display = 'none';
         window.switchTab('billing');
     }
+
+    // Arriving from Trash with a number to re-enter: land on Billing, not here
+    if (hasReenterHandoff()) {
+        window.switchTab('billing');
+    }
+
     loadAutoInvoiceNumber();
 }
 
@@ -488,12 +506,83 @@ function updateSortIcons(activeKey, order) {
     });
 }
 
+function renderReportTotals(docs) {
+    const tfoot = document.getElementById('reportTfoot');
+    if (!tfoot) return;
+
+    if (!docs || docs.length === 0) {
+        tfoot.classList.add('hidden');
+        return;
+    }
+
+    const sum = (key) => docs.reduce((acc, d) => acc + (parseFloat(d[key]) || 0), 0);
+    const loanTotal = sum('loanAmount');
+    const chargesTotal = sum('charges');
+    const sgstTotal = sum('sgst');
+    const cgstTotal = sum('cgst');
+    const grandTotal = sum('total');
+
+    const fmt = (val) => val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    document.getElementById('totalCountLabel').textContent = `Total (${docs.length} invoice${docs.length !== 1 ? 's' : ''})`;
+    document.getElementById('totalLoanAmount').textContent = fmt(loanTotal);
+    document.getElementById('totalCharges').textContent = fmt(chargesTotal);
+    document.getElementById('totalSgst').textContent = fmt(sgstTotal);
+    document.getElementById('totalCgst').textContent = fmt(cgstTotal);
+
+    const grandCell = document.getElementById('totalGrand');
+    grandCell.textContent = fmt(grandTotal);
+    grandCell.classList.add('grand');
+
+    tfoot.classList.remove('hidden');
+}
+
+// Resolve the display form of an invoice number (e.g. "ABC/001").
+// Shared by the table renderer and the Excel export so both agree.
+function computeDisplayInvoiceNo(data, branchCodeMap) {
+    let displayInvoiceNo = (data.invoiceNo || '').trim();
+    if (!displayInvoiceNo) return '';
+
+    const parts = displayInvoiceNo.split('/');
+    const rawPrefix = parts.length > 1 ? parts[0] : '';
+    const rawNum = parts.length > 1 ? parts[1] : parts[0];
+
+    const resolvedCode = (branchCodeMap && branchCodeMap.get(rawPrefix.toLowerCase())) ||
+        (branchCodeMap && branchCodeMap.get((data.branchId || '').trim().toLowerCase())) ||
+        (branchCodeMap && branchCodeMap.get((data.branchName || '').trim().toLowerCase())) ||
+        (data.branchCode || rawPrefix || 'INV');
+
+    return `${String(resolvedCode).toUpperCase()}/${String(rawNum).padStart(3, '0')}`;
+}
+
+// Strict dd/mm/yyyy parser. Avoids `new Date("2026-09-15")`, which is parsed as
+// UTC and lands on the previous day in negative-offset timezones.
+function parseDdMmYyyy(dateStr) {
+    if (!dateStr) return null;
+    const m = String(dateStr).trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if (m) {
+        const day = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10);
+        const year = parseInt(m[3], 10);
+        if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+        const d = new Date(year, month - 1, day);
+        // Reject overflow like 31/02
+        if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+        return d;
+    }
+
+    const parsed = new Date(dateStr);
+    if (isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
 function renderReportTable(docs, branchCodeMap) {
     const tbody = document.getElementById('reportTbody');
     if (!tbody) return;
 
     if (!docs || docs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No records found for this criteria.</td></tr>';
+        renderReportTotals(docs);
         return;
     }
 
@@ -501,19 +590,7 @@ function renderReportTable(docs, branchCodeMap) {
 
     let html = '';
     docs.forEach((data) => {
-        let displayInvoiceNo = (data.invoiceNo || '').trim();
-        if (displayInvoiceNo) {
-            const parts = displayInvoiceNo.split('/');
-            let rawPrefix = parts.length > 1 ? parts[0] : '';
-            let rawNum = parts.length > 1 ? parts[1] : parts[0];
-
-            let resolvedCode = (branchCodeMap && branchCodeMap.get(rawPrefix.toLowerCase())) ||
-                (branchCodeMap && branchCodeMap.get((data.branchId || '').trim().toLowerCase())) ||
-                (branchCodeMap && branchCodeMap.get((data.branchName || '').trim().toLowerCase())) ||
-                (data.branchCode || rawPrefix || 'INV');
-
-            displayInvoiceNo = `${String(resolvedCode).toUpperCase()}/${rawNum.padStart(3, '0')}`;
-        }
+        const displayInvoiceNo = computeDisplayInvoiceNo(data, branchCodeMap);
 
         html += `
             <tr>                    
@@ -537,6 +614,7 @@ function renderReportTable(docs, branchCodeMap) {
     });
 
     tbody.innerHTML = html;
+    renderReportTotals(docs);
     updateSortIcons(reportSortKey, reportSortOrder);
 }
 
@@ -566,6 +644,7 @@ async function loadReports() {
         if (querySnapshot.empty) {
             currentReportDocs = [];
             tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No records found.</td></tr>';
+            renderReportTotals([]);
             return;
         }
 
@@ -689,6 +768,7 @@ async function loadReports() {
         if (filteredDocs.length === 0) {
             currentReportDocs = [];
             tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">No records found for this criteria.</td></tr>';
+            renderReportTotals([]);
             return;
         }
 
@@ -1370,9 +1450,200 @@ let currentNextBillNoVal = 1;
 let currentBranchName = '';
 let currentBranchCode = '';
 
+// -------------------------------------------------------------
+// Re-entering a deleted invoice number
+// A number that is not the latest cannot be handed back to the counter,
+// so it is carried from the Trash page into this form instead. The
+// handoff is one-shot: it is consumed the first time the form loads.
+// -------------------------------------------------------------
+const REENTER_STORAGE_KEY = 'artReenterInvoice';
+let reenterState = null;   // set only while a re-entry is in progress
+
+function splitInvoiceNo(full) {
+    const s = String(full || '').trim();
+    if (!s) return { prefix: '', numeric: '' };
+    const i = s.lastIndexOf('/');
+    if (i === -1) return { prefix: '', numeric: s };
+    return { prefix: s.slice(0, i).trim(), numeric: s.slice(i + 1).trim() };
+}
+
+function setReenterHandoff(payload) {
+    try { sessionStorage.setItem(REENTER_STORAGE_KEY, JSON.stringify(payload)); } catch (e) { }
+}
+
+function readReenterHandoff() {
+    try {
+        const raw = sessionStorage.getItem(REENTER_STORAGE_KEY);
+        if (!raw) return null;
+        sessionStorage.removeItem(REENTER_STORAGE_KEY);   // one-shot
+        const p = JSON.parse(raw);
+        return (p && p.invoiceNo) ? p : null;
+    } catch (e) { return null; }
+}
+
+// Checks for a pending re-entry without consuming it, so the landing tab can
+// be chosen before the form reads it
+function hasReenterHandoff() {
+    try {
+        const raw = sessionStorage.getItem(REENTER_STORAGE_KEY);
+        if (!raw) return false;
+        const p = JSON.parse(raw);
+        return !!(p && p.invoiceNo);
+    } catch (e) { return false; }
+}
+
+function clearReenterHandoff() {
+    try { sessionStorage.removeItem(REENTER_STORAGE_KEY); } catch (e) { }
+}
+
+// Looks up a branch by id, then by name, then by code
+async function findBranchDoc({ branchId, branchName, branchCode }) {
+    const id = (branchId || '').trim();
+    const name = (branchName || '').trim().toLowerCase();
+    const code = (branchCode || '').trim().toLowerCase();
+    if (!id && !name && !code) return null;
+
+    const snap = await getDocs(collection(db, "branches"));
+    let found = null;
+    snap.forEach(d => {
+        const b = d.data() || {};
+        const bId = d.id.trim().toLowerCase();
+        const bName = (b.name || '').trim().toLowerCase();
+        const bCode = (b.branchCode || '').trim().toLowerCase();
+        if ((id && (bId === id.toLowerCase() || d.id === id)) ||
+            (name && bName === name) || (code && bCode === code)) {
+            found = { id: d.id, ...b };
+        }
+    });
+    return found;
+}
+
+// The branch dropdown stores branch names, so pin it to the deleted branch.
+// Setting .value does not fire 'change', so this cannot loop back into here.
+async function ensureBranchFilterValue(branchName) {
+    const sel = document.getElementById('branchFilter');
+    if (!sel || !branchName) return;
+    const has = () => Array.from(sel.options).some(o => o.value === branchName);
+    if (!has()) {
+        try { await populateBranchFilter(); } catch (e) { }
+    }
+    if (has()) sel.value = branchName;
+}
+
+// Put the carried-over number into the form and pin it to the deleted branch.
+// A re-entry belongs to exactly one branch, so this never falls back to the
+// first branch the way the normal admin path does. Returns false when the
+// branch cannot be resolved, so the caller can stop instead of saving into the
+// wrong branch.
+async function applyReenterHandoff(h) {
+    const invoiceNoInput = document.getElementById('invoiceNo');
+    if (!invoiceNoInput) return false;
+
+    const { prefix, numeric } = splitInvoiceNo(h.invoiceNo);
+
+    let branch = null;
+    try {
+        branch = await findBranchDoc({ branchId: h.branchId, branchName: h.branchName, branchCode: h.branchCode });
+    } catch (err) {
+        console.error("Error resolving branch for re-entry:", err);
+    }
+
+    if (!branch) return false;
+
+    reenterState = {
+        ...h,
+        numeric,
+        resolvedBranchId: branch.id,
+        resolvedBranchName: branch.name || h.branchName || 'HeadOffice',
+        resolvedBranchCode: (branch.branchCode || branch.name || prefix || 'INV').trim().toUpperCase()
+    };
+
+    activeBranchDocId = reenterState.resolvedBranchId;
+    currentBranchName = reenterState.resolvedBranchName;
+    currentBranchCode = reenterState.resolvedBranchCode;
+    activeBranchPrintEnable = ((branch.printEnable || '').trim().toLowerCase() === 'yes');
+    // The number is fixed for this entry, so nothing here may advance the counter
+    isAutoBillEnabled = true;
+    currentNextBillNoVal = parseInt(numeric, 10) || 0;
+
+    // Keep the original digits exactly, including any zero padding
+    invoiceNoInput.value = numeric;
+    invoiceNoInput.readOnly = true;
+    invoiceNoInput.style.backgroundColor = '#e2e8f0';
+    invoiceNoInput.style.color = '#0f172a';
+    invoiceNoInput.style.fontWeight = '700';
+    invoiceNoInput.style.cursor = 'not-allowed';
+
+    // Show the branch this entry is locked to, so it is never ambiguous
+    await ensureBranchFilterValue(reenterState.resolvedBranchName);
+
+    // Lock the branch selector: this entry belongs to the deleted invoice's
+    // branch only, so it must not be pointed somewhere else
+    const branchSel = document.getElementById('branchFilter');
+    if (branchSel) {
+        branchSel.disabled = true;
+        branchSel.title = `Locked to ${reenterState.resolvedBranchName} for this re-entry`;
+    }
+
+    const note = document.getElementById('reenterNote');
+    if (note) {
+        note.textContent = `Re-entering deleted invoice ${h.invoiceNo} in ${reenterState.resolvedBranchName}. `
+            + `Enter the new amount and save - the number stays ${h.invoiceNo}.`;
+        note.classList.remove('hidden');
+    }
+    return true;
+}
+
+// Re-assert the pinned branch and number without touching Firestore, so a later
+// call (branch dropdown change, branch list refresh) cannot move the entry
+// back to the first branch
+function reassertReenterPins() {
+    if (!reenterState) return;
+    const invoiceNoInput = document.getElementById('invoiceNo');
+    if (invoiceNoInput) {
+        invoiceNoInput.value = reenterState.numeric;
+        invoiceNoInput.readOnly = true;
+    }
+    activeBranchDocId = reenterState.resolvedBranchId || '';
+    currentBranchName = reenterState.resolvedBranchName || 'HeadOffice';
+    currentBranchCode = reenterState.resolvedBranchCode || 'INV';
+    isAutoBillEnabled = true;
+    currentNextBillNoVal = parseInt(reenterState.numeric, 10) || 0;
+}
+
+// Drop the re-entry hint and release the number back to normal auto numbering
+function endReenterMode() {
+    reenterState = null;
+    clearReenterHandoff();
+    const note = document.getElementById('reenterNote');
+    if (note) { note.textContent = ''; note.classList.add('hidden'); }
+    const branchSel = document.getElementById('branchFilter');
+    if (branchSel) { branchSel.disabled = false; branchSel.title = ''; }
+}
+
 async function loadAutoInvoiceNumber() {
     const invoiceNoInput = document.getElementById('invoiceNo');
     if (!invoiceNoInput) return;
+
+    // A carried-over number wins over the normal counter
+    const handoff = readReenterHandoff();
+    if (handoff) {
+        const applied = await applyReenterHandoff(handoff);
+        if (applied) return;
+
+        // Never fall back to another branch - that would file the invoice wrongly.
+        // Cancel the re-entry and hand back a normal, usable form instead.
+        showToast(`Could not match a branch for invoice ${handoff.invoiceNo}. `
+            + `Re-entry cancelled - re-enter it from that branch.`, "error");
+        endReenterMode();
+        // fall through to the normal numbering below
+    }
+
+    // A re-entry in progress is pinned to the deleted invoice's branch
+    if (reenterState) {
+        reassertReenterPins();
+        return;
+    }
 
     let userObj = currentUser;
     if (!userObj) {
@@ -1614,18 +1885,466 @@ async function printInvoiceData(data) {
 // Delete Invoice
 //---------------------------------------------
 
+// Hand a deleted invoice's number back so the same number can be re-entered
+// with a corrected amount. The branch counter only ever moves forward, so a
+// deleted number would otherwise be burnt for good.
+//
+// Rolling the counter back is only safe when the deleted invoice is the most
+// recent number the counter issued. If it is not, lowering the counter would
+// eventually reissue numbers that are still in use, so we leave it alone and
+// report "not-latest" so the caller can offer a manual re-entry instead.
+async function releaseInvoiceNumber(invoice) {
+    const raw = String((invoice && invoice.invoiceNo) || '').trim();
+    if (!raw) return { released: null, reason: 'no-number' };
+
+    // Stored as "BRANCHCODE/123" - the counter only governs the numeric part
+    const num = parseInt(raw.split('/').pop().trim(), 10);
+    if (isNaN(num) || num < 1) return { released: null, reason: 'unparseable' };
+
+    // Resolve the branch from the deleted invoice, never from the billing form,
+    // because an invoice can be deleted from a report showing other branches.
+    let branchDocId = (invoice.branchId || '').trim();
+    if (!branchDocId) {
+        const name = (invoice.branchName || '').trim().toLowerCase();
+        const code = (invoice.branchCode || '').trim().toLowerCase();
+        if (!name && !code) return { released: null, reason: 'unknown-branch' };
+        const branchesSnap = await getDocs(collection(db, "branches"));
+        branchesSnap.forEach(d => {
+            const b = d.data() || {};
+            const bName = (b.name || '').trim().toLowerCase();
+            const bCode = (b.branchCode || '').trim().toLowerCase();
+            if ((name && bName === name) || (code && bCode === code)) branchDocId = d.id;
+        });
+    }
+    if (!branchDocId) return { released: null, reason: 'unknown-branch' };
+
+    const branchRef = doc(db, "branches", branchDocId);
+    const snap = await getDoc(branchRef);
+    if (!snap.exists()) return { released: null, reason: 'unknown-branch' };
+
+    const branch = snap.data() || {};
+    // Only branches that auto-number can hand a number back
+    if ((branch.autoBillNo || '').trim().toLowerCase() !== 'yes') {
+        return { released: null, reason: 'manual-numbering', num };
+    }
+
+    const next = parseInt(branch.nextBillNo, 10);
+    if (isNaN(next) || next - 1 !== num) {
+        return { released: null, reason: 'not-latest', num, next };
+    }
+
+    await updateDoc(branchRef, { nextBillNo: num });
+    return { released: num, reason: 'released', num, next };
+}
+
 window.deleteInvoice = async function (id) {
+    // Find the invoice in the loaded report rows, else read it from Firestore
+    let invoice = (currentReportDocs || []).find(d => d.id === id) || null;
+    if (!invoice) {
+        try {
+            const snap = await getDoc(doc(db, "invoices", id));
+            if (snap.exists()) invoice = snap.data();
+        } catch (err) {
+            console.error("Error loading invoice for delete check:", err);
+        }
+    }
+
+    // Without the invoice body we cannot archive it, so refuse rather than lose it
+    if (!invoice) {
+        showToast("Could not read this invoice. Refresh and try again.", "error");
+        return;
+    }
+
+    const billDate = invoice.billDate || invoice.date;
+
+    // Verify the lock against fresh data, not the cached map, so a month locked in
+    // another tab still blocks the delete. If the check itself fails we deny.
+    let locked;
+    try {
+        locked = await isMonthLockedFresh(billDate);
+    } catch (err) {
+        console.error("Error checking month lock:", err);
+        showToast("Could not verify month locks. Deletion blocked - try again.", "error");
+        return;
+    }
+
+    if (locked) {
+        const label = monthLabelFromKey(monthKeyFromDate(billDate));
+        showToast(`${label} is locked. Unlock it in Settings > Month Lock to delete invoices.`, "warning");
+        return;
+    }
+
     if (!confirm("Are you sure you want to delete this invoice?")) return;
     try {
+        // Soft delete: archive a restorable copy under the same id, then drop the original
+        const payload = { ...invoice };
+        delete payload.id;
+
+        await setDoc(doc(db, "deleted_invoices", id), {
+            ...payload,
+            originalId: id,
+            deletedAt: new Date(),
+            deletedBy: (currentUser && currentUser.username) ? currentUser.username : ''
+        });
         await deleteDoc(doc(db, "invoices", id));
-        showToast("Invoice deleted successfully.", "success");
+
+        // Give the number back so it can be re-entered with a new amount
+        let outcome = { released: null, reason: 'unknown' };
+        try {
+            outcome = await releaseInvoiceNumber(invoice) || outcome;
+        } catch (releaseErr) {
+            console.error("Error releasing invoice number:", releaseErr);
+        }
+
+        if (outcome.released) {
+            const numStr = String(outcome.released).padStart(3, '0');
+            showToast(`Invoice ${numStr} deleted. Number ${numStr} is free - re-enter it with the new amount.`, "success");
+        } else if (outcome.reason === 'not-latest') {
+            // The number is below the counter, so it will not be offered again on
+            // its own. Ask whether a copy was issued, because that decides whether
+            // re-using the number is acceptable at all.
+            await handleNotLatestDelete(invoice, id, outcome);
+        } else {
+            showToast("Invoice deleted. Restore it from Settings > Trash.", "success");
+        }
+
         loadReports();
         loadDashboardData();
+        loadAutoInvoiceNumber();
     } catch (err) {
         console.error("Error deleting invoice:", err);
         showToast("Error deleting invoice: " + err.message, "error");
     }
 };
+
+// A number that is not the latest cannot go back on the counter, so offer the
+// re-entry path. The user decides case by case, because re-using a number whose
+// copy has already reached a customer is a duplicate-number problem.
+async function handleNotLatestDelete(invoice, id, outcome) {
+    const numStr = String(outcome.num).padStart(3, '0');
+    const full = String(invoice.invoiceNo || '').trim();
+
+    const copyIssued = confirm(
+        `Invoice ${numStr} is not the most recent number, so ${numStr} will NOT be offered automatically again.\n\n` +
+        `Has a printed or given copy of invoice ${numStr} already reached the customer?\n\n` +
+        `OK = YES, a copy was issued\n` +
+        `     Keep ${numStr} in Trash with its original amount. Do not re-use the number.\n\n` +
+        `Cancel = NO copy was issued\n` +
+        `     Open Billing to re-enter ${numStr} with a new amount.`
+    );
+
+    if (copyIssued) {
+        showToast(`Invoice ${numStr} deleted. Kept in Trash - number not re-used.`, "success");
+        return;
+    }
+
+    // Only carry the entry over if its branch resolves, otherwise the form would
+    // have to guess a branch and the invoice would be filed against the wrong one
+    let branch = null;
+    try {
+        branch = await findBranchDoc({
+            branchId: invoice.branchId,
+            branchName: invoice.branchName,
+            branchCode: invoice.branchCode
+        });
+    } catch (err) {
+        console.error("Error resolving branch for re-entry:", err);
+    }
+    if (!branch) {
+        showToast(`Could not match a branch for invoice ${numStr}. `
+            + `It is kept in Trash - re-enter it from that branch.`, "error");
+        return;
+    }
+
+    setReenterHandoff({
+        invoiceNo: full,
+        trashId: id,
+        branchId: branch.id,
+        branchName: branch.name || invoice.branchName || '',
+        branchCode: (branch.branchCode || branch.name || '').trim()
+    });
+    showToast(`Opening Billing to re-enter ${numStr} in ${branch.name}. Enter the new amount and save.`, "success");
+    if (typeof window.switchTab === 'function') window.switchTab('billing');
+}
+
+
+// -------------------------------------------------------------
+// Month Lock
+// Locks are stored in the "month_locks" collection, one doc per month.
+// The doc id is the month key "YYYY-MM"; data: { month, locked, lockedAt, lockedBy }
+// -------------------------------------------------------------
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+
+let monthLocks = new Map(); // "YYYY-MM" -> { locked, lockedAt, lockedBy }
+
+// "2026-09-28" -> "2026-09"
+function monthKeyFromDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthKeyFromParts(year, monthIndex) {
+    return `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+}
+
+function monthLabelFromKey(key) {
+    const [y, m] = key.split('-');
+    const idx = parseInt(m, 10) - 1;
+    if (!y || isNaN(idx) || idx < 0 || idx > 11) return key;
+    return `${MONTH_NAMES[idx]} ${y}`;
+}
+
+function isMonthLocked(dateStr) {
+    const key = monthKeyFromDate(dateStr);
+    if (!key) return false;
+    const entry = monthLocks.get(key);
+    return !!(entry && entry.locked);
+}
+
+// Reads the month_locks collection into a fresh map. Throws on failure so that
+// callers guarding a destructive action can deny instead of assuming "unlocked".
+async function readMonthLocks() {
+    const snap = await getDocs(collection(db, "month_locks"));
+    const next = new Map();
+    snap.forEach(d => {
+        const data = d.data() || {};
+        const key = (data.month || d.id || '').trim();
+        if (!/^\d{4}-\d{2}$/.test(key)) return;
+        next.set(key, {
+            locked: data.locked === true,
+            lockedAt: data.lockedAt || null,
+            lockedBy: data.lockedBy || ''
+        });
+    });
+    return next;
+}
+
+// Authoritative check for destructive actions: re-reads locks so a lock set in
+// another tab is honoured, and refuses to answer "unlocked" if the read fails.
+async function isMonthLockedFresh(dateStr) {
+    const key = monthKeyFromDate(dateStr);
+    if (!key) return false;
+
+    const fresh = await readMonthLocks();
+    monthLocks = fresh;
+
+    const entry = fresh.get(key);
+    return !!(entry && entry.locked);
+}
+
+async function fetchMonthLocks() {
+    try {
+        monthLocks = await readMonthLocks();
+    } catch (err) {
+        console.error("Error fetching month locks:", err);
+    }
+}
+
+// Reflect the lock state of the currently chosen bill date on the form
+function refreshBillDateLockState() {
+    const billDateInput = document.getElementById('billDate');
+    const saveBtn = document.getElementById('saveInvoiceBtn');
+    if (!billDateInput) return;
+
+    const locked = isMonthLocked(billDateInput.value);
+    const note = document.getElementById('billDateLockNote');
+    const box = billDateInput.closest('.input-box');
+
+    if (box) box.classList.toggle('locked-date', locked);
+    if (note) {
+        note.textContent = locked
+            ? `${monthLabelFromKey(monthKeyFromDate(billDateInput.value))} is locked. Unlock it in Settings > Month Lock to save invoices.`
+            : '';
+        note.classList.toggle('hidden', !locked);
+    }
+    if (saveBtn) saveBtn.disabled = locked;
+}
+
+// -------------------------------------------------------------
+// Month Lock Tab Rendering
+// -------------------------------------------------------------
+// Years added with the "Add Year" button. The default range only reaches one
+// year ahead of today, and a lockdown may be needed further out, so these are
+// remembered here and merged into the list on every rebuild.
+const extraLockYears = new Set();
+
+// Default range plus any added years, newest first
+function lockYearOptions() {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let y = currentYear + 1; y >= currentYear - 2; y--) years.push(y);
+    extraLockYears.forEach(y => {
+        if (!years.includes(y)) years.push(y);
+    });
+    return years.sort((a, b) => b - a);
+}
+
+// Rebuilds the dropdown. Without an explicit year the current selection is
+// kept, so reopening the tab does not jump back to the current year.
+function renderLockYearSelect(preferredYear) {
+    const select = document.getElementById('lockYearSelect');
+    if (!select) return;
+
+    const currentYear = new Date().getFullYear();
+    const years = lockYearOptions();
+    const wanted = preferredYear !== undefined ? parseInt(preferredYear, 10) : parseInt(select.value, 10);
+    const selected = years.includes(wanted) ? wanted : currentYear;
+
+    select.innerHTML = '';
+    years.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        if (y === selected) opt.selected = true;
+        select.appendChild(opt);
+    });
+}
+
+function populateLockYearSelect() {
+    renderLockYearSelect();
+}
+
+// Adds the year after the highest one currently listed and shows it
+function addLockYear() {
+    const years = lockYearOptions();
+    const next = years[0] + 1;
+
+    if (extraLockYears.has(next)) {
+        showToast(`${next} is already the highest year in the list.`, "warning");
+        return;
+    }
+
+    extraLockYears.add(next);
+    renderLockYearSelect(next);
+    renderMonthLockGrid();
+    showToast(`${next} added to the year list.`, "success");
+}
+
+async function loadMonthLocks() {
+    if (!currentUser) return;
+
+    const grid = document.getElementById('monthLockGrid');
+    if (!grid) return;
+
+    populateLockYearSelect();
+    grid.innerHTML = '<div class="loading-td">Loading months...</div>';
+
+    await fetchMonthLocks();
+    renderMonthLockGrid();
+}
+
+function renderMonthLockGrid() {
+    const grid = document.getElementById('monthLockGrid');
+    const yearSelect = document.getElementById('lockYearSelect');
+    const badge = document.getElementById('lockCountBadge');
+    if (!grid) return;
+
+    const year = yearSelect ? parseInt(yearSelect.value, 10) : new Date().getFullYear();
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+
+    let html = '';
+    MONTH_NAMES.forEach((name, idx) => {
+        const key = monthKeyFromParts(year, idx);
+        const entry = monthLocks.get(key);
+        const locked = !!(entry && entry.locked);
+
+        const isFuture = year > currentYear || (year === currentYear && idx > currentMonth);
+
+        let statusHtml = '';
+        if (locked) {
+            const by = entry.lockedBy ? ` by ${entry.lockedBy}` : '';
+            statusHtml = `<span class="ml-locked"><i class="fa-solid fa-lock"></i> Locked${by}</span>`;
+        } else if (isFuture) {
+            statusHtml = '<span class="ml-future">Upcoming</span>';
+        } else {
+            statusHtml = '<span class="ml-open"><i class="fa-solid fa-lock-open"></i> Open</span>';
+        }
+
+        const btnLabel = locked ? 'Unlock' : 'Lock';
+        const btnClass = locked ? 'btn-unlock' : 'btn-lock';
+        const btnIcon = locked ? 'fa-lock-open' : 'fa-lock';
+
+        html += `
+            <div class="month-lock-item ${locked ? 'is-locked' : ''}">
+                <div class="ml-name">${name} ${year}</div>
+                <div class="ml-status">${statusHtml}</div>
+                <button class="btn-secondary ${btnClass}" data-month="${key}" data-locked="${locked}">
+                    <i class="fa-solid ${btnIcon}"></i> ${btnLabel}
+                </button>
+            </div>
+        `;
+    });
+
+    grid.innerHTML = html;
+
+    if (badge) {
+        let lockedCount = 0;
+        monthLocks.forEach(e => { if (e.locked) lockedCount++; });
+        badge.textContent = `${lockedCount} Locked`;
+    }
+
+    refreshBillDateLockState();
+}
+
+document.getElementById('monthLockGrid')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-month]');
+    if (!btn) return;
+
+    const monthKey = btn.getAttribute('data-month');
+    const wasLocked = btn.getAttribute('data-locked') === 'true';
+    const label = monthLabelFromKey(monthKey);
+
+    if (!wasLocked) {
+        const ok = confirm(`Lock ${label}?\n\nNew invoices cannot be saved in this month until it is unlocked.`);
+        if (!ok) return;
+    }
+
+    btn.disabled = true;
+    try {
+        await setDoc(doc(db, "month_locks", monthKey), {
+            month: monthKey,
+            locked: !wasLocked,
+            lockedAt: wasLocked ? null : new Date(),
+            lockedBy: wasLocked ? '' : (currentUser && currentUser.username ? currentUser.username : '')
+        }, { merge: true });
+
+        await fetchMonthLocks();
+        renderMonthLockGrid();
+        showToast(
+            wasLocked ? `${label} unlocked.` : `${label} locked.`,
+            wasLocked ? 'success' : 'warning'
+        );
+    } catch (err) {
+        console.error("Error updating month lock:", err);
+        showToast("Error updating month lock: " + err.message, "error");
+        renderMonthLockGrid();
+    }
+});
+
+const lockYearSelect = document.getElementById('lockYearSelect');
+if (lockYearSelect) {
+    lockYearSelect.addEventListener('change', renderMonthLockGrid);
+}
+
+const addLockYearBtn = document.getElementById('addLockYearBtn');
+if (addLockYearBtn) {
+    addLockYearBtn.addEventListener('click', addLockYear);
+}
+
+const billDateInputForLock = document.getElementById('billDate');
+if (billDateInputForLock) {
+    billDateInputForLock.addEventListener('change', refreshBillDateLockState);
+}
+
+// Load locks once at startup so billing can enforce them immediately
+document.addEventListener('DOMContentLoaded', () => {
+    fetchMonthLocks().then(() => refreshBillDateLockState());
+});
 
 
 // -------------------------------------------------------------
@@ -1652,6 +2371,26 @@ if (billingForm) {
         if (!billDate || !invoiceNo || !loanNo || !customerName || loanAmount <= 0) {
             showToast("Please fill all required billing fields.", "warning");
             if (saveBtn) saveBtn.disabled = false;
+            return;
+        }
+
+        // Enforce month lock: no new invoice may be saved in a locked month.
+        // Checked against fresh data, and a failed check denies the save.
+        let monthLocked;
+        try {
+            monthLocked = await isMonthLockedFresh(billDate);
+        } catch (err) {
+            console.error("Error checking month lock:", err);
+            if (saveBtn) saveBtn.disabled = false;
+            showToast("Could not verify month locks. Save blocked - try again.", "error");
+            return;
+        }
+
+        if (monthLocked) {
+            const label = monthLabelFromKey(monthKeyFromDate(billDate));
+            showToast(`${label} is locked. Unlock it in Settings > Month Lock to save invoices.`, "warning");
+            if (saveBtn) saveBtn.disabled = false;
+            refreshBillDateLockState();
             return;
         }
 
@@ -1686,8 +2425,9 @@ if (billingForm) {
         try {
             await addDoc(collection(db, "invoices"), invoiceData);
 
-            // Update next bill number if auto billing is enabled for active branch
-            if (isAutoBillEnabled && activeBranchDocId) {
+            // Advance the counter only for a normal entry. A re-entered number is
+            // below the counter, so bumping here would burn the next number.
+            if (isAutoBillEnabled && activeBranchDocId && !reenterState) {
                 try {
                     const branchRef = doc(db, "branches", activeBranchDocId);
                     await updateDoc(branchRef, {
@@ -1698,7 +2438,20 @@ if (billingForm) {
                 }
             }
 
-            showToast("Invoice saved successfully!", "success");
+            if (reenterState) {
+                // The number is live again, so retire the trashed copy of it
+                if (reenterState.trashId) {
+                    try {
+                        await deleteDoc(doc(db, "deleted_invoices", reenterState.trashId));
+                    } catch (trashErr) {
+                        console.error("Error clearing trashed copy after re-entry:", trashErr);
+                    }
+                }
+                showToast(`${fullInvoiceNo} re-entered with the new amount.`, "success");
+                endReenterMode();
+            } else {
+                showToast("Invoice saved successfully!", "success");
+            }
 
             // Print invoice if print is enabled for active branch
             if (activeBranchPrintEnable) {
@@ -1710,6 +2463,7 @@ if (billingForm) {
             document.getElementById('billDate').value = new Date().toISOString().split('T')[0];
             loadAutoInvoiceNumber();
             loadDashboardData();
+            refreshBillDateLockState();
 
         } catch (error) {
             console.error("Error saving invoice:", error);
@@ -1759,48 +2513,120 @@ if (printPdfBtn) {
     });
 }
 
-// Export Report Table to Excel (.xlsx / .xls)
+// Builds the report rows from data (not from the rendered HTML) so the date
+// column is written as a real Excel date and the amount columns as real numbers.
+function buildReportAoa(docs, branchCodeMap) {
+    const header = ['Date', 'Invoice No', 'Loan No', 'Customer',
+        'Loan Amount', 'Charges', 'SGST', 'CGST', 'Total'];
+
+    const aoa = [header];
+
+    docs.forEach((d) => {
+        const displayDate = formatDate(d.billDate);
+        aoa.push([
+            parseDdMmYyyy(displayDate) || displayDate,   // Date object, or raw text if unparseable
+            computeDisplayInvoiceNo(d, branchCodeMap),
+            d.loanNo || '',
+            d.customerName || '',
+            parseFloat(d.loanAmount) || 0,
+            parseFloat(d.charges) || 0,
+            parseFloat(d.sgst) || 0,
+            parseFloat(d.cgst) || 0,
+            parseFloat(d.total) || 0
+        ]);
+    });
+
+    // Totals row, matching the sticky footer shown on screen
+    const sum = (key) => docs.reduce((acc, d) => acc + (parseFloat(d[key]) || 0), 0);
+    aoa.push([
+        `Total (${docs.length} invoice${docs.length !== 1 ? 's' : ''})`, '', '', '',
+        sum('loanAmount'), sum('charges'), sum('sgst'), sum('cgst'), sum('total')
+    ]);
+
+    return aoa;
+}
+
+const REPORT_DATE_FORMAT = 'dd/mm/yyyy';
+const REPORT_MONEY_FORMAT = '#,##0.00';
+
+function styleReportSheet(ws) {
+    if (!ws || !ws['!ref']) return;
+
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const lastRow = range.e.r;
+    const totalsRowIndex = Math.max(lastRow, 1);
+
+    for (let R = range.s.r; R <= lastRow; R++) {
+        const dateCell = ws[XLSX.utils.encode_cell({ r: R, c: 0 })];
+        if (dateCell && dateCell.t === 'd') dateCell.z = REPORT_DATE_FORMAT;
+
+        // Money columns E..I (index 4..8)
+        for (let C = 4; C <= 8; C++) {
+            const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+            if (cell && cell.t === 'n') cell.z = REPORT_MONEY_FORMAT;
+        }
+    }
+
+    // Bold the totals row
+    for (let C = 0; C <= 8; C++) {
+        const addr = XLSX.utils.encode_cell({ r: totalsRowIndex, c: C });
+        const cell = ws[addr];
+        if (cell) cell.s = Object.assign({}, cell.s, { font: { bold: true } });
+    }
+
+    ws['!cols'] = [
+        { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 26 },
+        { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }
+    ];
+}
+
+// Export Report to Excel (.xlsx / .xls)
 const exportExcelBtn = document.getElementById('exportExcelBtn');
 if (exportExcelBtn) {
     exportExcelBtn.addEventListener('click', () => {
-        const table = document.getElementById('reportTable');
-        if (!table) return;
+        const docs = currentReportDocs || [];
+        if (docs.length === 0) {
+            showToast("Nothing to export for this criteria.", "warning");
+            return;
+        }
 
         const fileName = `Invoice_Report_${new Date().toISOString().split('T')[0]}`;
+        const aoa = buildReportAoa(docs, currentBranchCodeMap);
 
         if (typeof XLSX !== 'undefined') {
-            // Clone table and remove Actions column & sort icons
-            const cloneTable = table.cloneNode(true);
-            const headers = cloneTable.querySelectorAll('th');
-            headers.forEach(th => {
-                const icon = th.querySelector('i');
-                if (icon) icon.remove();
-            });
-            const rows = cloneTable.querySelectorAll('tr');
-            rows.forEach(row => {
-                if (row.lastElementChild) row.lastElementChild.remove();
-            });
-
-            const wb = XLSX.utils.table_to_book(cloneTable, { sheet: "Invoice Report" });
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: REPORT_DATE_FORMAT });
+            styleReportSheet(ws);
+            XLSX.utils.book_append_sheet(wb, ws, "Invoice Report");
             XLSX.writeFile(wb, `${fileName}.xlsx`);
         } else {
             // Fallback: Excel XML/HTML Blob (.xls)
+            const esc = (s) => String(s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            const pad = (n) => String(n).padStart(2, '0');
+            const fmtMoney = (n) => n.toLocaleString('en-IN', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            });
+            const fmtDateOut = (v) => (v instanceof Date && !isNaN(v.getTime()))
+                ? `${pad(v.getDate())}/${pad(v.getMonth() + 1)}/${v.getFullYear()}`
+                : v;
+
             let htmlTable = '<html><head><meta charset="utf-8"></head><body><table border="1">';
-            const rows = table.querySelectorAll('tr');
-            for (let i = 0; i < rows.length; i++) {
+            aoa.forEach((row, ri) => {
                 htmlTable += '<tr>';
-                const cols = rows[i].querySelectorAll('td, th');
-                // Skip action column (last column)
-                for (let j = 0; j < cols.length - 1; j++) {
-                    let cellText = cols[j].innerText.trim();
-                    if (rows[i].querySelector('th')) {
-                        htmlTable += `<th style="background-color: #4f46e5; color: #ffffff;">${cellText}</th>`;
+                row.forEach((cell) => {
+                    if (ri === 0) {
+                        htmlTable += `<th style="background-color: #4f46e5; color: #ffffff;">${esc(cell)}</th>`;
                     } else {
-                        htmlTable += `<td>${cellText}</td>`;
+                        const isText = typeof cell === 'string';
+                        const value = isText ? esc(cell) : (typeof cell === 'number' ? fmtMoney(cell) : esc(fmtDateOut(cell)));
+                        const style = ri === aoa.length - 1 ? ' style="font-weight:bold; background:#eef2ff;"' : '';
+                        htmlTable += `<td${style}>${value}</td>`;
                     }
-                }
+                });
                 htmlTable += '</tr>';
-            }
+            });
             htmlTable += '</table></body></html>';
 
             const blob = new Blob([htmlTable], { type: 'application/vnd.ms-excel' });
@@ -1811,6 +2637,7 @@ if (exportExcelBtn) {
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(downloadLink.href);
         }
     });
 }
